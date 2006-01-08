@@ -3,7 +3,7 @@
 	system.inc
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2005 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -195,8 +195,9 @@ function system_syslogd_start() {
 		$syslogconf = <<<EOD
 local0.*					%/var/log/filter.log
 local3.*					%/var/log/vpn.log
+local4.*					%/var/log/portalauth.log
 local7.*					%/var/log/dhcpd.log
-*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local7.none %/var/log/system.log
+*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none %/var/log/system.log
 security.*					%/var/log/system.log
 auth.info;authpriv.info;daemon.info		%/var/log/system.log
 *.emerg						*
@@ -216,6 +217,13 @@ local3.*					@{$syslogcfg['remoteserver']}
 
 EOD;
 		}
+		
+		if (isset($syslogcfg['portalauth'])) {
+			$syslogconf .= <<<EOD
+local4.*					@{$syslogcfg['remoteserver']}
+
+EOD;
+		}
 
 		if (isset($syslogcfg['dhcp'])) {
 			$syslogconf .= <<<EOD
@@ -226,7 +234,7 @@ EOD;
 
 		if (isset($syslogcfg['system'])) {
 			$syslogconf .= <<<EOD
-*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local7.none @{$syslogcfg['remoteserver']}
+*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none @{$syslogcfg['remoteserver']}
 security.*					@{$syslogcfg['remoteserver']}
 auth.info;authpriv.info;daemon.info		@{$syslogcfg['remoteserver']}
 *.emerg						@{$syslogcfg['remoteserver']}
@@ -300,15 +308,15 @@ function system_webgui_start() {
 			/* default certificate/key */
 			$cert = <<<EOD
 -----BEGIN CERTIFICATE-----
-MIIBlDCB/gIBADANBgkqhkiG9w0BAQQFADATMREwDwYDVQQKEwhtMG4wd2FsbDAe
-Fw0wMzA5MDgxNzAzNDZaFw0wNDA5MDcxNzAzNDZaMBMxETAPBgNVBAoTCG0wbjB3
+MIIBlDCB/gIBATANBgkqhkiG9w0BAQQFADATMREwDwYDVQQKEwhtMG4wd2FsbDAe
+Fw0wNTAyMjAxMjE5MTJaFw0wNjAyMjAxMjE5MTJaMBMxETAPBgNVBAoTCG0wbjB3
 YWxsMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDAShszhFz+o8lsMWTGgTxs
 TMPR+v4+qL5jXDyY97MLTGFK7aqQOtpIQc+TcTc4jklgOVlHoR7oBXrsi8YrbCd+
 83LPQmQoSPC0VqhfU3uYf3NzxiK8r97aPCsmWgwT2pQ6TcESTm6sF7nLprOf/zFP
-C4jE2fvjkbzyVolPywBuewIDAQABMA0GCSqGSIb3DQEBBAUAA4GBAK2D8NqQSlUs
-pFCe5J9ue1LrjfGHHy4HE9zA9avgrz3Qju+1JOshEwy/1BJjZ93tQUbiRS7RwvDO
-4crGG4IejjhFczzA2CIX3rd2rYM2oGpojKgm5YuuhV5lYPwAHUOLbBaLOVqlLhzw
-VqjD7R2DkXUIfhJ5ZekqK5ZwzqJXta8U
+C4jE2fvjkbzyVolPywBuewIDAQABMA0GCSqGSIb3DQEBBAUAA4GBAA08vuF7aMWy
+mUK8wzAPwSKAnu1AcH5xFoNuQFf3Y8IJKsox3LrhGnWYGbjOcQ9iHNK71QVYik1d
+NXAPnKVPeFA1UfAKfpRbrmbpifIhq6JFM3as61mrp1JFWMtUioTyDK186DA0QdMz
+Cdml8p6HuwhRBlOIovFO2S0r02njIIqJ
 -----END CERTIFICATE-----
 
 EOD;
@@ -539,20 +547,13 @@ function system_set_harddisk_standby() {
 		if ($g['booting']) {
 			echo 'Setting harddisk standby time... ';
 		}
-
-		$standby = $config['system']['harddiskstandby'];
-		// Check for a numeric value
-		if (is_numeric($standby)) {
-			// Sync the disk(s)
-			mwexec('/bin/sync');
-			if (!mwexec('/sbin/sysctl hw.ata.standby=' . ((int)$standby))) {
-				// Reinitialize ATA-drives
-				mwexec('/usr/local/sbin/atareinit');
-				if ($g['booting']) {
-					echo "done\n";
-				}
-			} else if ($g['booting']) {
-				echo "failed\n";
+		
+		// Sync the disk(s)
+		mwexec('/bin/sync');
+		
+		if (!mwexec("/usr/local/sbin/ataidle -S " . escapeshellarg($config['system']['harddiskstandby']) . " 0 0")) {
+			if ($g['booting']) {
+				echo "done\n";
 			}
 		} else if ($g['booting']) {
 			echo "failed\n";

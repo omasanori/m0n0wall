@@ -3,7 +3,7 @@
 	interfaces.inc
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2005 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -112,8 +112,12 @@ function interfaces_lan_configure() {
 		mwexec($cmd);
 	}
 	
+	$addflags = "";
+	if (strpos($lancfg['if'], "fxp") !== false)
+		$addflags .= " link0";
+	
 	mwexec("/sbin/ifconfig " . escapeshellarg($lancfg['if']) . " " . 
-		escapeshellarg($lancfg['ipaddr'] . "/" . $lancfg['subnet']));
+		escapeshellarg($lancfg['ipaddr'] . "/" . $lancfg['subnet']) . $addflags);
 	
 	if (!$g['booting']) {
 		/* make new hosts file */
@@ -163,15 +167,16 @@ function interfaces_optional_configure() {
 	
 	if ($bridgeconfig) {
 		/* Set the system bridge configuration and enable bridging. */
-		mwexec("/sbin/sysctl net.link.ether.bridge_cfg=" . $bridgeconfig);
+		mwexec("/sbin/sysctl net.link.ether.bridge.config=" . $bridgeconfig);
 		
-		if (isset($config['bridge']['filteringbridge']))
-			mwexec("/sbin/sysctl net.link.ether.bridge_ipf=1");
+		if (isset($config['bridge']['filteringbridge'])) {
+			mwexec("/sbin/sysctl net.link.ether.bridge.ipf=1");
+		}
 		
-		mwexec("/sbin/sysctl net.link.ether.bridge=1");
+		mwexec("/sbin/sysctl net.link.ether.bridge.enable=1");
 	} else {
-		mwexec("/sbin/sysctl net.link.ether.bridge_ipf=0");
-		mwexec("/sbin/sysctl net.link.ether.bridge=0");
+		mwexec("/sbin/sysctl net.link.ether.bridge.ipf=0");
+		mwexec("/sbin/sysctl net.link.ether.bridge.enable=0");
 	}
 	
 	if (!$g['booting']) {
@@ -235,6 +240,10 @@ function interfaces_optional_configure_if($opti) {
  			if (strstr($if, "tap"))
  				ovpn_link_tap();
  		}
+	
+		$addflags = "";
+		if (strpos($optcfg['if'], "fxp") !== false)
+			$addflags .= " link0";
 		
 		/* bridged? */
 		if ($optcfg['bridge']) {
@@ -249,7 +258,7 @@ function interfaces_optional_configure_if($opti) {
 				":" . $opti;
 		} else {
 			mwexec("/sbin/ifconfig " . escapeshellarg($optcfg['if']) . " " . 
-				escapeshellarg($optcfg['ipaddr'] . "/" . $optcfg['subnet']));
+				escapeshellarg($optcfg['ipaddr'] . "/" . $optcfg['subnet']) . $addflags);
 		}
 	} else {
 		mwexec("/sbin/ifconfig " . escapeshellarg($optcfg['if']) . 
@@ -288,21 +297,32 @@ function interfaces_wireless_configure($if, $wlcfg) {
 		$ifcargs .= "wepmode off ";
 	}
 	
+	if (strstr($if, "ath")) {
+		if ($wlcfg['standard'])
+			$ifcargs .= "mode {$wlcfg['standard']} ";
+	}
+	
 	switch ($wlcfg['mode']) {
 		case 'hostap':
-			if (strstr($if, "wi"))
+			if (strstr($if, "ath"))
+				$ifcargs .= "-mediaopt adhoc mediaopt hostap ";
+			else if (strstr($if, "wi"))
 				$ifcargs .= "-mediaopt ibss mediaopt hostap ";
 			break;
 		case 'ibss':
 		case 'IBSS':
-			if (strstr($if, "wi"))
+			if (strstr($if, "ath"))
+				$ifcargs .= "-mediaopt hostap mediaopt adhoc ";
+			else if (strstr($if, "wi"))
 				$ifcargs .= "-mediaopt hostap mediaopt ibss ";
 			else if (strstr($if, "an"))
 				$ifcargs .= "mediaopt adhoc ";
 			break;
 		case 'bss':
 		case 'BSS':
-			if (strstr($if, "wi"))
+			if (strstr($if, "ath"))
+				$ifcargs .= "-mediaopt hostap -mediaopt adhoc ";
+			else if (strstr($if, "wi"))
 				$ifcargs .= "-mediaopt hostap -mediaopt ibss ";
 			else if (strstr($if, "an"))
 				$ifcargs .= "-mediaopt adhoc ";
@@ -362,6 +382,10 @@ function interfaces_wan_configure() {
 		mwexec($cmd);
 	}
 	
+	$addflags = "";
+	if (strpos($wancfg['if'], "fxp") !== false)
+		$addflags .= " link0";
+	
 	switch ($wancfg['ipaddr']) {
 	
 		case 'dhcp':
@@ -385,10 +409,10 @@ function interfaces_wan_configure() {
 			if (isset($wancfg['ispointtopoint']) && $wancfg['pointtopoint']) {
 				mwexec("/sbin/ifconfig " . escapeshellarg($wancfg['if']) . " " . 
 					escapeshellarg($wancfg['ipaddr'] . "/" . $wancfg['subnet']) . 
-					" " . escapeshellarg($wancfg['pointtopoint']) . " up");
+					" " . escapeshellarg($wancfg['pointtopoint']) . $addflags . " up");
 			} else {
 				mwexec("/sbin/ifconfig " . escapeshellarg($wancfg['if']) . " " . 
-					escapeshellarg($wancfg['ipaddr'] . "/" . $wancfg['subnet']));
+					escapeshellarg($wancfg['ipaddr'] . "/" . $wancfg['subnet']) . $addflags);
 			}
 			
 			/* install default route */
