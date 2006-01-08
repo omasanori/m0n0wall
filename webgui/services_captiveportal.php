@@ -4,7 +4,7 @@
 	services_captiveportal.php
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2004 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2005 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,7 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 
+$pgtitle = array("Services", "Captive portal");
 require("guiconfig.inc");
 
 if (!is_array($config['captiveportal'])) {
@@ -56,6 +57,13 @@ $pconfig['cert'] = base64_decode($config['captiveportal']['certificate']);
 $pconfig['key'] = base64_decode($config['captiveportal']['private-key']);
 $pconfig['logoutwin_enable'] = isset($config['captiveportal']['logoutwin_enable']);
 $pconfig['nomacfilter'] = isset($config['captiveportal']['nomacfilter']);
+$pconfig['peruserbw'] = isset($config['captiveportal']['peruserbw']);
+$pconfig['bwauthmacup'] = $config['captiveportal']['bwauthmacup'];
+$pconfig['bwauthmacdn'] = $config['captiveportal']['bwauthmacdn'];
+$pconfig['bwauthipup'] = $config['captiveportal']['bwauthipup'];
+$pconfig['bwauthipdn'] = $config['captiveportal']['bwauthipdn'];
+$pconfig['bwdefaultup'] = $config['captiveportal']['bwdefaultup'];
+$pconfig['bwdefaultdn'] = $config['captiveportal']['bwdefaultdn'];
 $pconfig['redirurl'] = $config['captiveportal']['redirurl'];
 $pconfig['radiusip'] = $config['captiveportal']['radiusip'];
 $pconfig['radiusport'] = $config['captiveportal']['radiusport'];
@@ -126,6 +134,13 @@ if ($_POST) {
 		$config['captiveportal']['certificate'] = base64_encode($_POST['cert']);
 		$config['captiveportal']['private-key'] = base64_encode($_POST['key']);
 		$config['captiveportal']['logoutwin_enable'] = $_POST['logoutwin_enable'] ? true : false;
+		$config['captiveportal']['peruserbw'] = $_POST['peruserbw'] ? true : false;
+		$config['captiveportal']['bwauthmacup'] = $_POST['bwauthmacup'];
+		$config['captiveportal']['bwauthmacdn'] = $_POST['bwauthmacdn'];
+		$config['captiveportal']['bwauthipup'] = $_POST['bwauthipup'];
+		$config['captiveportal']['bwauthipdn'] = $_POST['bwauthipdn'];
+		$config['captiveportal']['bwdefaultup'] = $_POST['bwdefaultup'];
+		$config['captiveportal']['bwdefaultdn'] = $_POST['bwdefaultdn'];
 		$config['captiveportal']['nomacfilter'] = $_POST['nomacfilter'] ? true : false;
 		$config['captiveportal']['redirurl'] = $_POST['redirurl'];
 		$config['captiveportal']['radiusip'] = $_POST['radiusip'];
@@ -151,12 +166,7 @@ if ($_POST) {
 	}
 }
 ?>
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
-<html>
-<head>
-<title><?=gentitle("Services: Captive portal");?></title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-<link href="gui.css" rel="stylesheet" type="text/css">
+<?php include("fbegin.inc"); ?>
 <script language="JavaScript">
 <!--
 function radacct_change() {
@@ -192,16 +202,11 @@ function enable_change(enable_change) {
 }
 //-->
 </script>
-</head>
-
-<body link="#0000CC" vlink="#0000CC" alink="#0000CC">
-<?php include("fbegin.inc"); ?>
-<p class="pgtitle">Services: Captive portal</p>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <form action="services_captiveportal.php" method="post" enctype="multipart/form-data" name="iform" id="iform">
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
-  <tr><td>
+  <tr><td class="tabnavtbl">
   <ul id="tabnav">
 	<li class="tabact">Captive portal</li>
 	<li class="tabinact"><a href="services_captiveportal_mac.php">Pass-through MAC</a></li>
@@ -268,7 +273,35 @@ to access after they've authenticated.</td>
       <td class="vtable">
         <input name="nomacfilter" type="checkbox" class="formfld" id="nomacfilter" value="yes" <?php if ($pconfig['nomacfilter']) echo "checked"; ?>>
         <strong>Disable MAC filtering</strong><br>
-    If this option is set, no attempts will be made to ensure that the MAC address of clients stays the same while they're logged in. This is required when the MAC address of cannot be determined (usually because there are routers between m0n0wall and the clients).</td>
+    If this option is set, no attempts will be made to ensure that the MAC address of clients stays the same while they're logged in. This is required when the MAC address cannot be determined (usually because there are routers between m0n0wall and the clients).</td>
+	  </tr>
+	  <tr>
+      <td valign="top" class="vncell">Per-user bandwidth restriction</td>
+      <td class="vtable">
+		  <input name="peruserbw" type="checkbox" class="formfld" id="peruserbw" value="yes" <?php if ($pconfig['peruserbw']) echo "checked"; ?>>
+          <strong>Enable per-user bandwidth restriction	</strong><br><br>
+		<table cellpadding="0" cellspacing="0">
+		<tr>
+		<td>Pass-through MAC download&nbsp;&nbsp;</td>
+		<td><input type="text" class="formfld" id="bwauthmacdn" size="5" value="<?=htmlspecialchars($pconfig['bwauthmacdn']);?>"> Kbit/s</td>
+		</tr><tr>
+		<td>Pass-through MAC upload</td>
+		<td><input type="text" class="formfld" id="bwauthmacdn" size="5" value="<?=htmlspecialchars($pconfig['bwauthmacup']);?>"> Kbit/s</td>
+		</tr><tr>
+		<td>Pass-through IP download</td>
+		<td><input type="text" class="formfld" id="bwauthipdn" size="5" value="<?=htmlspecialchars($pconfig['bwauthipdn']);?>"> Kbit/s</td>
+		</tr><tr>
+		<td>Pass-through IP upload</td>
+		<td><input type="text" class="formfld" id="bwauthipup" size="5" value="<?=htmlspecialchars($pconfig['bwauthipup']);?>"> Kbit/s</td>
+		</tr><tr>
+		<td>Default download</td>
+		<td><input type="text" class="formfld" id="bwdefaultdn" size="5" value="<?=htmlspecialchars($pconfig['bwdefaultdn']);?>"> Kbit/s</td>
+		</tr><tr>
+		<td>Default upload</td>
+		<td><input type="text" class="formfld" id="bwdefaultup" size="5" value="<?=htmlspecialchars($pconfig['bwdefaultup']);?>"> Kbit/s</td>
+		</tr></table>
+        <br>
+    If this option is set, the captive portal will restrict each user who logs in to a specific bandwidth as set in RADIUS. Your RADIUS server must return the attributes Nomadix-Bw-Up and Nomadix-Bw-Down (1 and 2 VSAs from Vendor 3309, Nomadix) along with Access-Accept for this to work. Bandwidth is set in Kbit/s. You can control pass-through and default bandwidths above.</td>
 	  </tr>
 	<tr> 
 	  <td width="22%" valign="top" class="vncell">RADIUS server</td>
@@ -325,7 +358,7 @@ to access after they've authenticated.</td>
 	<tr> 
 	  <td width="22%" valign="top" class="vncellreq">Portal page contents</td>
 	  <td width="78%" class="vtable">    
-		<input type="file" name="htmlfile" class="formfld" id="htmlfile"><br>
+		<?=$mandfldhtml;?><input type="file" name="htmlfile" class="formfld" id="htmlfile"><br>
 		<?php if ($config['captiveportal']['page']['htmltext']): ?>
 		<a href="?act=viewhtml" target="_blank">View current page</a>                      
 		  <br>
@@ -376,5 +409,3 @@ enable_change(false);
 //-->
 </script>
 <?php include("fend.inc"); ?>
-</body>
-</html>
