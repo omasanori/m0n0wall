@@ -92,6 +92,7 @@ if ($_POST) {
 		}
 		$config['system']['webgui']['noantilockout'] = $_POST['noantilockout'] ? true : false;
 		$config['filter']['bypassstaticroutes'] = $_POST['bypassstaticroutes'] ? true : false;
+		$oldtcpidletimeout = $config['filter']['tcpidletimeout'];
 		$config['filter']['tcpidletimeout'] = $_POST['tcpidletimeout'];
 		$oldpreferoldsa = $config['ipsec']['preferoldsa'];
 		$config['ipsec']['preferoldsa'] = $_POST['preferoldsa_enable'] ? true : false;
@@ -117,6 +118,10 @@ if ($_POST) {
 			}
 		}
 		
+		if ($config['filter']['tcpidletimeout'] != $oldtcpidletimeout) {
+			touch($d_sysrebootreqd_path);
+		}
+		
 		$retval = 0;
 		if (!file_exists($d_sysrebootreqd_path)) {
 			config_lock();
@@ -124,7 +129,6 @@ if ($_POST) {
 			$retval |= interfaces_optional_configure();
 			if ($config['ipsec']['preferoldsa'] != $oldpreferoldsa)
 				$retval |= vpn_ipsec_configure();
-			$retval |= system_polling_configure();
 			$retval |= system_set_termcap();
 			config_unlock();
 		}
