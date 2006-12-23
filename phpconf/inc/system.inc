@@ -257,28 +257,6 @@ EOD;
 	return $retval;
 }
 
-function system_pccard_start() {
-	global $config, $g;
-	
-	if ($g['booting'])
-		echo "Initializing PC cards... ";
-	
-	/* kill any running pccardd */
-	killbypid("{$g['varrun_path']}/pccardd.pid");
-	
-	/* fire up pccardd */
-	$res = mwexec("/usr/sbin/pccardd -z -f {$g['etc_path']}/pccard.conf");
-	
-	if ($g['booting']) {
-		if ($res == 0)
-			echo "done\n";
-		else
-			echo "failed (probably no PC card controller present)\n";
-	}
-		
-	return $res;
-}
-
 function system_webgui_start() {
 	global $config, $g;
 	
@@ -582,28 +560,14 @@ function system_set_harddisk_standby() {
 		if (is_numeric($standby)) {
 			// Sync the disk(s)
 			mwexec('/bin/sync');
-			if (!mwexec('/sbin/sysctl hw.ata.suspend=' . ((int)$standby*60))) {
-				// Reinitialize ATA-drives
-				mwexec('/usr/local/sbin/atareinit');
-				if ($g['booting']) {
-					echo "done\n";
-				}
-			} else if ($g['booting']) {
-				echo "failed\n";
+			// Reinitialize ATA-drives
+			mwexec('/sbin/atacontrol reinit 0');
+			if ($g['booting']) {
+				echo "done\n";
 			}
 		} else if ($g['booting']) {
 			echo "failed\n";
 		}
-	}
-}
-
-function system_polling_configure() {
-	global $config, $g;
-	
-	if (isset($config['system']['polling'])) {
-		mwexec("/sbin/sysctl kern.polling.enable=1");
-	} else {
-		mwexec("/sbin/sysctl kern.polling.enable=0");
 	}
 }
 

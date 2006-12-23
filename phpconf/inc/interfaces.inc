@@ -44,15 +44,6 @@ function interfaces_vlan_configure() {
 	
 	if (is_array($config['vlans']['vlan']) && count($config['vlans']['vlan'])) {
 		
-		/* load the VLAN module */
-		mwexec("/sbin/kldload if_vlan");
-		
-		/* devices with native VLAN support */
-		$vlan_native_supp = explode(" ", "bge em gx nge ti txp");
-		
-		/* devices with long frame support */
-		$vlan_long_supp = explode(" ", "dc fxp sis ste tl tx xl");
-		
 		$i = 0;
 		
 		foreach ($config['vlans']['vlan'] as $vlan) {
@@ -60,18 +51,6 @@ function interfaces_vlan_configure() {
 			$cmd = "/sbin/ifconfig vlan{$i} create vlan " . 
 				escapeshellarg($vlan['tag']) . " vlandev " . 
 				escapeshellarg($vlan['if']);
-			
-			/* get driver name */
-			for ($j = 0; $j < strlen($vlan['if']); $j++) {
-				if ($vlan['if'][$j] >= '0' && $vlan['if'][$j] <= '9')
-					break;
-			}
-			$drvname = substr($vlan['if'], 0, $j);
-			
-			if (in_array($drvname, $vlan_native_supp))
-				$cmd .= " link0";
-			else if (in_array($drvname, $vlan_long_supp))
-				$cmd .= " mtu 1500";
 			
 			mwexec($cmd);
 			
@@ -115,10 +94,14 @@ function interfaces_lan_configure() {
 	$addflags = "";
 	if (strpos($lancfg['if'], "fxp") !== false)
 		$addflags .= " link0";
+
+	if (isset($config['system']['polling']))
+		$addflags .= " polling";
 	
 	mwexec("/sbin/ifconfig " . escapeshellarg($lancfg['if']) . " " . 
 		escapeshellarg($lancfg['ipaddr'] . "/" . $lancfg['subnet']) . $addflags);
 	
+
 	if (!$g['booting']) {
 		/* make new hosts file */
 		system_hosts_generate();
@@ -167,17 +150,17 @@ function interfaces_optional_configure() {
 	
 	if ($bridgeconfig) {
 		/* Set the system bridge configuration and enable bridging. */
-		mwexec("/sbin/sysctl net.link.ether.bridge_cfg=" . $bridgeconfig);
+		mwexec("/sbin/sysctl net.link.ether.bridge.config=" . $bridgeconfig);
 		
 		if (isset($config['bridge']['filteringbridge']))
-			mwexec("/sbin/sysctl net.link.ether.bridge_ipf=1");
+			mwexec("/sbin/sysctl net.link.ether.bridge.ipf=1");
 		else
-			mwexec("/sbin/sysctl net.link.ether.bridge_ipf=0");
+			mwexec("/sbin/sysctl net.link.ether.bridge.ipf=0");
 		
-		mwexec("/sbin/sysctl net.link.ether.bridge=1");
+		mwexec("/sbin/sysctl net.link.ether.bridge.enable=1");
 	} else {
-		mwexec("/sbin/sysctl net.link.ether.bridge_ipf=0");
-		mwexec("/sbin/sysctl net.link.ether.bridge=0");
+		mwexec("/sbin/sysctl net.link.ether.bridge.ipf=0");
+		mwexec("/sbin/sysctl net.link.ether.bridge.enable=0");
 	}
 	
 	if (!$g['booting']) {
@@ -240,6 +223,9 @@ function interfaces_optional_configure_if($opti) {
 		if (strpos($optcfg['if'], "fxp") !== false)
 			$addflags .= " link0";
 		
+		if (isset($config['system']['polling']))
+			mwexec("/sbin/ifconfig " . escapeshellarg($wancfg['if']) .  " polling") ;
+	
 		/* bridged? */
 		if ($optcfg['bridge']) {
 			mwexec("/sbin/ifconfig " . escapeshellarg($optcfg['if']) . 
@@ -270,12 +256,16 @@ function interfaces_wireless_configure($if, $wlcfg) {
 	global $config, $g;
 	
 	/* wireless configuration */
+	
+	/* the mode/standard (11a/b/g) needs to be set separately */
+	if ($wlcfg['standard']) {
+		mwexec("/sbin/ifconfig " . escapeshellarg($if) . " mode " .
+			escapeshellarg($wlcfg['standard']));
+	}
+	
 	$ifcargs = escapeshellarg($if) . 
 		" ssid " . escapeshellarg($wlcfg['ssid']) . " channel " . 
 		escapeshellarg($wlcfg['channel']) . " ";
-	
-	if ($wlcfg['stationname'])
-		$ifcargs .= "stationname " . escapeshellarg($wlcfg['stationname']) . " ";
 	
 	if (isset($wlcfg['wep']['enable']) && is_array($wlcfg['wep']['key'])) {
 		$ifcargs .= "wepmode on ";
@@ -292,35 +282,23 @@ function interfaces_wireless_configure($if, $wlcfg) {
 		$ifcargs .= "wepmode off ";
 	}
 	
-	if (strstr($if, "ath")) {
-		if ($wlcfg['standard'])
-			$ifcargs .= "mode {$wlcfg['standard']} ";
-	}
-	
 	switch ($wlcfg['mode']) {
 		case 'hostap':
-			if (strstr($if, "ath"))
-				$ifcargs .= "-mediaopt adhoc mediaopt hostap ";
-			else if (strstr($if, "wi"))
-				$ifcargs .= "-mediaopt ibss mediaopt hostap ";
+			$ifcargs .= "-mediaopt adhoc mediaopt hostap ";
 			break;
 		case 'ibss':
 		case 'IBSS':
-			if (strstr($if, "ath"))
-				$ifcargs .= "-mediaopt hostap mediaopt adhoc ";
-			else if (strstr($if, "wi"))
-				$ifcargs .= "-mediaopt hostap mediaopt ibss ";
-			else if (strstr($if, "an"))
+			if (strstr($if, "an"))
 				$ifcargs .= "mediaopt adhoc ";
+			else
+				$ifcargs .= "-mediaopt hostap mediaopt adhoc ";
 			break;
 		case 'bss':
 		case 'BSS':
-			if (strstr($if, "ath"))
-				$ifcargs .= "-mediaopt hostap -mediaopt adhoc ";
-			else if (strstr($if, "wi"))
-				$ifcargs .= "-mediaopt hostap -mediaopt ibss ";
-			else if (strstr($if, "an"))
+			if (strstr($if, "an"))
 				$ifcargs .= "-mediaopt adhoc ";
+			else
+				$ifcargs .= "-mediaopt hostap -mediaopt adhoc ";
 			break;
 	}
 	
@@ -340,7 +318,7 @@ function interfaces_wan_configure() {
 		echo "Configuring WAN interface... ";
 	else {
 		/* kill dhclient */
-		killbypid("{$g['varrun_path']}/dhclient.pid");
+		mwexec("/usr/bin/killall dhclient");
 		
 		/* kill PPPoE client (mpd) */
 		killbypid("{$g['varrun_path']}/mpd.pid");
@@ -380,6 +358,9 @@ function interfaces_wan_configure() {
 	$addflags = "";
 	if (strpos($wancfg['if'], "fxp") !== false)
 		$addflags .= " link0";
+	
+	if (isset($config['system']['polling']))
+		mwexec("/sbin/ifconfig " . escapeshellarg($wancfg['if']) .  " polling") ;
 	
 	switch ($wancfg['ipaddr']) {
 	
@@ -475,14 +456,14 @@ EOD;
 	fclose($fd);
 	
 	/* fire up dhclient - don't wait for the lease (-nw) */
-	mwexec("/sbin/dhclient -nw -cf {$g['varetc_path']}/dhclient.conf " .
+	mwexec("/sbin/dhclient -nw -cf {$g['varetc_path']}/dhclient.conf -sf /sbin/dhclient-script " .
 		escapeshellarg($wancfg['if']));
 	
 	return 0;
 }
 
 function interfaces_wan_dhcp_down() {
-	mwexec("/sbin/dhclient -r");
+	mwexec("/usr/bin/killall dhclient");
 
 	sleep(3);
 }
@@ -523,6 +504,7 @@ pppoe:
 	set iface {$ondemand} on-demand
 	set iface idle {$idle}
 	set iface up-script /usr/local/sbin/ppp-linkup
+	set iface enable tcpmssfix
 
 EOD;
 	

@@ -1,5 +1,3 @@
-# $Id$
-
 # contents of /bin
 bin/[:bin/test
 bin/cat
@@ -24,8 +22,7 @@ bin/sync
 
 # contents of /sbin
 sbin/adjkerntz
-sbin/dhclient
-sbin/dhclient-script
+sbin/atacontrol
 sbin/dmesg
 sbin/fastboot:sbin/fasthalt:sbin/halt:sbin/reboot
 sbin/ifconfig
@@ -39,17 +36,16 @@ sbin/ipnat
 sbin/kldload
 sbin/kldunload
 sbin/ldconfig
+sbin/mdconfig
+sbin/mdmfs
 sbin/mount
-sbin/mount_fdesc:sbin/mount_linprocfs:sbin/mount_procfs:sbin/mount_std
-sbin/mount_mfs
-sbin/mount_msdos
-sbin/mount_null
-sbin/mount_umap
-sbin/mount_union
+sbin/mount_msdosfs
+sbin/newfs
 sbin/nologin
 sbin/ping
 sbin/reboot
 sbin/route
+sbin/setkey
 sbin/shutdown
 sbin/sysctl
 sbin/umount
@@ -59,6 +55,7 @@ usr/bin/gzip:usr/bin/gunzip
 usr/bin/killall
 usr/bin/logger
 usr/bin/netstat
+usr/bin/nsupdate
 usr/bin/nohup
 usr/bin/su
 usr/bin/tail
@@ -72,13 +69,8 @@ usr/sbin/ancontrol
 usr/sbin/arp
 usr/sbin/chown
 usr/sbin/chroot
-usr/sbin/dev_mkdb
-usr/sbin/nsupdate
-usr/sbin/pccardd
 usr/sbin/pwd_mkdb
-usr/sbin/setkey
 usr/sbin/traceroute
-usr/sbin/wicontrol
 
 # contents of /usr/libexec
 usr/libexec/ld-elf.so.1
