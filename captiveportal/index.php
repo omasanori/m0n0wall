@@ -4,7 +4,8 @@
     $Id$
     part of m0n0wall (http://m0n0.ch/wall)
     
-    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>
+    and (C) 2006-2007 Jonathan De Graeve <m0n0wall@esstec.be>.
     All rights reserved.
     
     Redistribution and use in source and binary forms, with or without
@@ -78,7 +79,7 @@ if (!$clientmac && $macfilter) {
 }
 
 /* find out if we need RADIUS + RADIUSMAC or not */
-if (file_exists("{$g['vardb_path']}/captiveportal_radius.db")) {
+if (isset($config['captiveportal']['radiusip']) && ($config['captiveportal']['auth_method'] == "radius")) {
     $radius_enable = TRUE;
     if ($radius_enable && isset($config['captiveportal']['radmac_enable']))
         $radmac_enable = TRUE;
