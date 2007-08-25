@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -269,6 +269,7 @@ function enable_change(enable_change) {
            		  'Pass-through MAC' => 'services_captiveportal_mac.php',
            		  'Allowed IP addresses' => 'services_captiveportal_ip.php',
            		  'Users' => 'services_captiveportal_users.php',
+           		  'Vouchers' => 'services_captiveportal_vouchers.php',
            		  'File Manager' => 'services_captiveportal_filemanager.php');
 	dynamic_tab_menu($tabs);
 ?> 
@@ -366,7 +367,7 @@ to access after they've authenticated.</td>
         <strong>Enable per-user bandwidth restriction</strong><br><br>
         <table cellpadding="0" cellspacing="0">
         <tr>
-        <td>Default download</td>
+        <td>Default download&nbsp;&nbsp;</td>
         <td><input type="text" class="formfld" name="bwdefaultdn" id="bwdefaultdn" size="10" value="<?=htmlspecialchars($pconfig['bwdefaultdn']);?>"> Kbit/s</td>
         </tr>
         <tr>
@@ -517,7 +518,7 @@ to access after they've authenticated.</td>
 				the Called-Station-Id to the client's MAC address. Default behaviour is Calling-Station-Id = client's MAC address and Called-Station-Id = m0n0wall's WAN MAC address.</td>
 			</tr>
             <tr>
-                <td class="vncell">MAC address format</td>
+                <td class="vncell" valign="top">MAC address format</td>
                 <td class="vtable">
                 <select name="radmac_format" id="radmac_format">
                 <option>default</option>
@@ -579,12 +580,13 @@ to access after they've authenticated.</td>
 		<?php endif; ?>
 		  Upload an HTML file for the portal page here (leave blank to keep the current one). Make sure to include a form (POST to &quot;$PORTAL_ACTION$&quot;)
 with a submit button (name=&quot;accept&quot;) and a hidden field with name=&quot;redirurl&quot; and value=&quot;$PORTAL_REDIRURL$&quot;.
-Include the &quot;auth_user&quot; and &quot;auth_pass&quot; input fields if authentication is enabled, otherwise it will always fail.
+Include the &quot;auth_user&quot; and &quot;auth_pass&quot; and/or &quot;auth_voucher&quot; input fields if authentication is enabled, otherwise it will always fail.
 Example code for the form:<br>
 		  <br>
 		  <tt>&lt;form method=&quot;post&quot; action=&quot;$PORTAL_ACTION$&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_user&quot; type=&quot;text&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_pass&quot; type=&quot;password&quot;&gt;<br>
+		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_voucher&quot; type=&quot;text&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;redirurl&quot; type=&quot;hidden&quot; value=&quot;$PORTAL_REDIRURL$&quot;&gt;<br>
 &nbsp;&nbsp;&nbsp;&lt;input name=&quot;accept&quot; type=&quot;submit&quot; value=&quot;Continue&quot;&gt;<br>
 		  &lt;/form&gt;</tt></td>

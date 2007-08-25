@@ -4,7 +4,7 @@
     $Id$
     part of m0n0wall (http://m0n0.ch/wall)
     
-    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+    Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
     All rights reserved.
     
     Redistribution and use in source and binary forms, with or without
@@ -86,6 +86,25 @@ if ($fp) {
 }
 captiveportal_unlock();
 ?>
+
+<?php if (isset($config['voucher']['enable'])): ?>
+<form action="status_captiveportal.php" method="post" enctype="multipart/form-data" name="iform" id="iform">
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr><td class="tabnavtbl">
+<ul id="tabnav">
+<?php 
+$tabs = array('Users' => 'status_captiveportal.php',
+        'Active Vouchers' => 'status_captiveportal_vouchers.php',
+        'Voucher Rolls' => 'status_captiveportal_voucher_rolls.php',
+        'Test Vouchers' => 'status_captiveportal_test.php');
+    dynamic_tab_menu($tabs);
+?> 
+</ul>
+</td></tr>
+<tr>
+<td class="tabcont">
+<?php endif; ?>
+
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
   <tr>
     <td class="listhdrr"><a href="?order=ip&showact=<?=$_GET['showact'];?>">IP address</a></td>
@@ -115,6 +134,14 @@ captiveportal_unlock();
   </tr>
 <?php endforeach; ?>
 </table>
+
+<?php if (isset($config['voucher']['enable'])): ?>
+</td>
+</tr>
+</table>
+</form>
+<?php endif; ?>
+
 <p>
 <form action="status_captiveportal.php" method="GET">
 <input type="hidden" name="order" value="<?=$_GET['order'];?>">

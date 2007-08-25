@@ -3,6 +3,107 @@ $Id$
 *** Note: Please add new entries to the top of this file. ***
 -------------------------------------------------------------------------------
 
+- wireless LAN improvements
+    - hide SSID option
+    - WPA-PSK and WPA-Enterprise (in hostap mode)
+
+- allow dashes in alias names
+
+- added hidden option to disable auto-generation of PPTP rules on WAN
+  (<nofwrulegen/> in <pptpd> section)
+
+- fix ATA HD spin down feature (using ataidle - needs testing)
+
+- ipfilter TCP window scaling bug fix
+  (see http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/contrib/ipfilter/netinet/ip_state.c#rev1.38)
+
+- sync in changes from 1.23 branch
+
+- increased mfsroot size to 14 MB (from 13 MB)
+
+- updated base system to FreeBSD 6.2-RELEASE-p6
+
+- updated PHP to 4.4.7
+
+- updated ipsec-tools to 0.6.7
+
+- updated isc-dhcpd to 3.0.5
+
+- updated Dnsmasq to 2.39
+
+- add kernel patch for fragment bug in ipfilter (contributed by Frank Edwards)
+
+- voucher login error messages for invalid and expired vouchers configurable
+  via GUI Captive Portal -> Voucher (mwiget)
+
+- added voucher support to captive portal (mwiget)
+
+- modified kernel patch to handle ipnat+dummynet in ip_input -> should fix problems
+  with captive portal not reporting downloaded data per user properly when the
+  traffic shaper is on, and also makes per-user bandwidth limits work again
+
+- add ural(4) to list of recognized wireless NICs
+
+- removed "-P" option from boot.config again (doesn't work properly with USB keyboards)
+
+- add kbdmux to kernel config of generic-pc(-cdrom) -> should fix problems with USB keyboards (hopefully)
+
+- use setkey from ipsec-tools now that we use NAT-T (mkasper)
+
+
+1.3b2
+-----
+
+- enabled AES for IPsec phase 1 (mkasper)
+
+- bumped MFS size in rc.firmware to 10 MB (mkasper)
+
+- set "-P" option in boot.config for generic-pc and generic-pc-cdrom to automatically
+  probe for a keyboard and use the serial port if no keyboard is found (mkasper)
+
+- compiled SNMP agent with support for memory usage information MIB (mkasper)
+
+- enabled NAT-T support for IPsec tunnels -> new option on IPsec webGUI pages (mkasper)
+
+- back-ported MSS clamping fix from MPD 4.0b5 to MPD 3.18 (fixes MTU problems with
+  PPPoE client) (mkasper)
+
+- enabled hostap for wireless cards supported by the ral(4) driver (mkasper)
+
+- forced PIO mode for ATA driver to work around problems with quirky hardware
+  (IDE controllers, CF cards) (mkasper)
+
+- changes in Captive Portal (jdegraeve):
+ - Always sent the session-time instead of only sending it within a stop. This
+   will cause most prepaid systems to work again.
+
+
+1.3b1
+-----
+
+- changed base system to FreeBSD 6.2-RC1 (final 1.3 version will be based on FreeBSD 6.2-RELEASE)
+
+- WARNING: the generic-pc image no longer fits on 8 MB CF cards! (>= 10 MB required)
+
+- for generic-pc-cdrom, the configuration may now also be stored on an USB memory stick
+  (instead of a floppy disk). m0n0wall will automatically probe for an USB stick with
+  an FAT file system first, and if this fails, fall back to the floppy drive
+
+- added support for new wireless features in FreeBSD 6
+	- Atheros cards are finally supported!
+	- channel selection on interface setup page now reflects actual capabilities of card
+	- wireless status page shows scanned APs in client mode and associated stations in hostap mode
+	- WPA support is expected in the next release
+
+- removed MTU option from Interfaces: WAN page. This used to control TCP MSS 
+  adjustment, but since the non-NAT-dependent MSS fixup patch kludged into ipnat 
+  has not been ported to ipfilter 4 (and is an ugly hack at best anyway), MSS 
+  fixup is now automatically applied for PPPoE connections (where it is actually 
+  needed) using MPD's integrated feature and shouldn't be necessary in other cases
+
+- a rather intrusive kernel patch was required to make concurrent traffic shaping + NAT on the
+  WAN interface possible; if you rely on this feature, please test it well and report any problems
+
 1.23b2
 ------
 

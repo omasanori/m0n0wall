@@ -3,7 +3,7 @@
 	$Id$
     part of m0n0wall (http://m0n0.ch/wall)
     
-    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+    Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
     All rights reserved.
     
     Redistribution and use in source and binary forms, with or without
@@ -50,8 +50,8 @@ $g = array(
     "pptp_subnet" => 28,
     "debug" => false,
     "latest_config" => "1.6",
-    "nopccard_platforms" => array("wrap", "net48xx"),
-    "wireless_regex" => "/^(wi|ath|an)/"
+    "wireless_regex" => "/^(wi|ath|an|ral|ural)/",
+    "wireless_hostap_regex" => "/^(wi|ath|ral|ural)/"
 );
 
 ?>

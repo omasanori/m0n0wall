@@ -63,7 +63,6 @@
 		</lan>
 		<wan>
 			<if>sis1</if>
-			<mtu></mtu>
 			<ipaddr>dhcp</ipaddr>
 			<!-- *or* ipv4-address *or* 'pppoe' *or* 'pptp' *or* 'bigpond' -->
 			<subnet></subnet>
@@ -101,6 +100,19 @@
 						<value></value>
 					</key>
 				</wep>
+				<hidessid/>
+				<wpa>
+					<mode>none|psk|enterprise</mode>
+					<version>1|2|3</version>
+					<cipher>tkip|ccmp|both</cipher>
+					<psk></psk>
+					<radius>
+						<server></server>
+						<authport></authport>
+						<acctport></acctport>
+						<secret></secret>
+					</radius>
+				</wpa>
 			</wireless>
 		</opt[n]>
 		-->
@@ -216,7 +228,15 @@
 			<name></name>
 			<password></password>
 		</user>
+		<radius>
+			<enable/>
+			<accounting/>
+			<radiusip/>
+			<server></server>
+			<secret></secret>
+		</radius>
 		-->
+		<!-- <nofwrulegen/> -->
 	</pptpd>
 	<dnsmasq>
 		<enable/>

@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -75,7 +75,6 @@ if ($wancfg['ipaddr'] == "dhcp") {
 
 $pconfig['blockpriv'] = isset($wancfg['blockpriv']);
 $pconfig['spoofmac'] = $wancfg['spoofmac'];
-$pconfig['mtu'] = $wancfg['mtu'];
 
 /* Wireless interface? */
 if (isset($optcfg['wireless'])) {
@@ -161,9 +160,6 @@ if ($_POST) {
 	if (($_POST['spoofmac'] && !is_macaddr($_POST['spoofmac']))) {
 		$input_errors[] = "A valid MAC address must be specified.";
 	}
-	if ($_POST['mtu'] && (($_POST['mtu'] < 576) || ($_POST['mtu'] > 1500))) {
-		$input_errors[] = "The MTU must be between 576 and 1500 bytes.";
-	}
 	
 	/* Wireless interface? */
 	if (isset($optcfg['wireless'])) {
@@ -234,7 +230,6 @@ if ($_POST) {
 		
 		$wancfg['blockpriv'] = $_POST['blockpriv'] ? true : false;
 		$wancfg['spoofmac'] = $_POST['spoofmac'];
-		$wancfg['mtu'] = $_POST['mtu'];
 			
 		write_config();
 		
@@ -256,6 +251,10 @@ function enable_change(enable_change) {
 		document.iform.pppoe_idletimeout.disabled = 0;
 	} else {
 		document.iform.pppoe_idletimeout.disabled = 1;
+	}
+	
+	if (document.iform.mode) {
+		 wlan_enable_change(enable_over);
 	}
 }
 
@@ -398,6 +397,9 @@ function type_change(enable_change,enable_change_pptp) {
 }
 //-->
 </script>
+<?php if (isset($optcfg['wireless'])): ?>
+<script language="javascript" src="interfaces_wlan.js"></script>
+<?php endif; ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
             <form action="interfaces_wan.php" method="post" name="iform" id="iform">
@@ -428,16 +430,6 @@ function type_change(enable_change,enable_change_pptp) {
                     (may be required with some cable connections)<br>
                     Enter a MAC address in the following format: xx:xx:xx:xx:xx:xx 
                     or leave blank</td>
-                </tr>
-                <tr> 
-                  <td valign="top" class="vncell">MTU</td>
-                  <td class="vtable"> <input name="mtu" type="text" class="formfld" id="mtu" size="8" value="<?=htmlspecialchars($pconfig['mtu']);?>"> 
-                    <br>
-                    If you enter a value in this field, then MSS clamping for 
-                    TCP connections to the value entered above minus 40 (TCP/IP 
-                    header size) will be in effect. If you leave this field blank, 
-                    an MTU of 1492 bytes for PPPoE and 1500 bytes for all other 
-                    connection types will be assumed.</td>
                 </tr>
                 <tr> 
                   <td colspan="2" valign="top" height="16"></td>
@@ -634,6 +626,9 @@ function type_change(enable_change,enable_change_pptp) {
 <script language="JavaScript">
 <!--
 type_change();
+<?php if (isset($optcfg['wireless'])): ?>
+wlan_enable_change(false);
+<?php endif; ?>
 //-->
 </script>
 <?php include("fend.inc"); ?>

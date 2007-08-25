@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -203,7 +203,7 @@ function is_macaddr($macaddr) {
 
 /* returns true if $name is a valid name for an alias */
 function is_validaliasname($name) {
-	if (!preg_match("/[^a-zA-Z0-9]/", $name))
+	if (!preg_match("/[^a-zA-Z0-9-]/", $name))
 		return true;
 	else
 		return false;
@@ -278,17 +278,18 @@ function mwexec($command) {
 	return $retval; 
 }
 
-/* wrapper for exec() in background */
+/* wrapper for exec() in background; returns PID of background process */
 function mwexec_bg($command) {
 
 	global $g;
 	
 	if ($g['debug']) {
 		if (!$_SERVER['REMOTE_ADDR'])
-			echo "mwexec(): $command\n";
+			echo "mwexec_bg(): $command\n";
 	}
 	
-	exec("nohup $command > /dev/null 2>&1 &");
+	$pid = shell_exec("nohup $command > /dev/null 2>&1 & echo \$!");
+	return $pid;
 }
 
 /* unlink a file, if it exists */

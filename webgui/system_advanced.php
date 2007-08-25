@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -92,9 +92,11 @@ if ($_POST) {
 		}
 		$config['system']['webgui']['noantilockout'] = $_POST['noantilockout'] ? true : false;
 		$config['filter']['bypassstaticroutes'] = $_POST['bypassstaticroutes'] ? true : false;
+		$oldtcpidletimeout = $config['filter']['tcpidletimeout'];
 		$config['filter']['tcpidletimeout'] = $_POST['tcpidletimeout'];
 		$oldpreferoldsa = $config['ipsec']['preferoldsa'];
 		$config['ipsec']['preferoldsa'] = $_POST['preferoldsa_enable'] ? true : false;
+		$oldpolling = $config['system']['polling'];
 		$config['system']['polling'] = $_POST['polling_enable'] ? true : false;
 		if (!$_POST['ipfstatentries'])
 			unset($config['diag']['ipfstatentries']);
@@ -104,9 +106,12 @@ if ($_POST) {
 		write_config();
 		
 		if (($config['system']['webgui']['certificate'] != $oldcert)
-				|| ($config['system']['webgui']['private-key'] != $oldkey)) {
+				|| ($config['system']['webgui']['private-key'] != $oldkey)
+				|| ($config['filter']['tcpidletimeout'] != $oldtcpidletimeout)
+				|| ($config['system']['polling'] != $oldpolling)) {
 			touch($d_sysrebootreqd_path);
-		} else if (($g['platform'] == "generic-pc") && ($config['system']['harddiskstandby'] != $oldharddiskstandby)) {
+		}
+		if (($g['platform'] == "generic-pc") && ($config['system']['harddiskstandby'] != $oldharddiskstandby)) {
 			if (!$config['system']['harddiskstandby']) {
 				// Reboot needed to deactivate standby due to a stupid ATA-protocol
 				touch($d_sysrebootreqd_path);
@@ -124,7 +129,6 @@ if ($_POST) {
 			$retval |= interfaces_optional_configure();
 			if ($config['ipsec']['preferoldsa'] != $oldpreferoldsa)
 				$retval |= vpn_ipsec_configure();
-			$retval |= system_polling_configure();
 			$retval |= system_set_termcap();
 			config_unlock();
 		}

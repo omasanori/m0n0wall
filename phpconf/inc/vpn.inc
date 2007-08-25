@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -60,8 +60,8 @@ function vpn_ipsec_configure($ipchg = false) {
 	}
 	
 	/* flush SPD and SAD */
-	mwexec("/usr/sbin/setkey -FP");
-	mwexec("/usr/sbin/setkey -F");
+	mwexec("/usr/local/sbin/setkey -FP");
+	mwexec("/usr/local/sbin/setkey -F");
 	
 	/* prefer old SAs only for 30 seconds, then use the new one */
 	if (!isset($config['ipsec']['preferoldsa']))
@@ -121,7 +121,7 @@ function vpn_ipsec_configure($ipchg = false) {
 				fclose($fd);
 			
 				/* load SPD */
-				mwexec("/usr/sbin/setkey -c < {$g['varetc_path']}/spd.conf");
+				mwexec("/usr/local/sbin/setkey -c < {$g['varetc_path']}/spd.conf");
 			}
 			
 			/* generate racoon.conf */
@@ -183,6 +183,11 @@ function vpn_ipsec_configure($ipchg = false) {
 					$myidentt = "user_fqdn";
 					$myident = $tunnel['p1']['myident']['ufqdn'];
  				}
+					
+				$nattline = '';
+				if (isset($tunnel['natt'])) {
+					$nattline = "nat_traversal on;";
+				}
 				
 				if (isset($tunnel['p1']['authentication_method'])) {
 					$authmethod = $tunnel['p1']['authentication_method'];
@@ -244,6 +249,7 @@ EOD;
 remote {$tunnel['remote-gateway']} \{
 	exchange_mode {$tunnel['p1']['mode']};
 	my_identifier {$myidentt} "{$myident}";
+	{$nattline}
 	{$certline}
 	peers_identifier address {$tunnel['remote-gateway']};
 	initial_contact on;
@@ -305,6 +311,11 @@ EOD;
 					$myidentt = "user_fqdn";
 					$myident = $tunnel['p1']['myident']['ufqdn'];
  				}
+					
+				$nattline = '';
+				if (isset($tunnel['natt'])) {
+					$nattline = "nat_traversal on;";
+				}
 				
 				if (isset($tunnel['p1']['authentication_method'])) {
 					$authmethod = $tunnel['p1']['authentication_method'];
@@ -350,6 +361,7 @@ EOD;
 remote anonymous \{
 	exchange_mode {$tunnel['p1']['mode']};
 	my_identifier {$myidentt} "{$myident}";
+	{$nattline}
 	{$certline}
 	initial_contact on;
 	passive on;
@@ -571,6 +583,14 @@ EOD;
 				if (isset($pptpdcfg['radius']['accounting'])) {
 					$mpdconf .= <<<EOD
 	set bundle enable radius-acct
+
+EOD;
+				}
+
+				if (isset($pptpdcfg['radius']['radiusip'])) {
+					$mpdconf .= <<<EOD
+	set ipcp yes radius-ip
+	set ipcp enable radius-ip
 
 EOD;
 				}

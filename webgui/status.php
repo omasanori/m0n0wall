@@ -121,7 +121,13 @@ function execCmds() {
 defCmdT("System uptime","uptime");
 defCmdT("Interfaces","/sbin/ifconfig -a");
 
-defCmdT("Routing tables","netstat -nr");
+defCmdT("Routing tables","/usr/bin/netstat -nr");
+
+defCmdT("Network buffers", "/usr/bin/netstat -m");
+defCmdT("Network protocol statistics", "/usr/bin/netstat -s");
+
+defCmdT("Kernel parameters", "/sbin/sysctl -a");
+defCmdT("Kernel modules loaded", "/sbin/kldstat");
 
 defCmdT("ipfw show", "/sbin/ipfw show");
 defCmdT("ipnat -lv", "/sbin/ipnat -lv");
@@ -141,8 +147,8 @@ defCmdT("ez-ipupdate.cache","cat /conf/ez-ipupdate.cache");
 defCmdT("df","/bin/df");
 
 defCmdT("racoon.conf","cat /var/etc/racoon.conf");
-defCmdT("SPD","/usr/sbin/setkey -DP");
-defCmdT("SAD","/usr/sbin/setkey -D");
+defCmdT("SPD","/usr/local/sbin/setkey -DP");
+defCmdT("SAD","/usr/local/sbin/setkey -D");
 
 defCmdT("last 200 system log entries","/usr/sbin/clog /var/log/system.log 2>&1 | tail -n 200");
 defCmdT("last 50 filter log entries","/usr/sbin/clog /var/log/filter.log 2>&1 | tail -n 50");

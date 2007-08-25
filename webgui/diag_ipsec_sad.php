@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@ require("guiconfig.inc");
 
 /* delete any SA? */
 if ($_GET['act'] == "del") {
-	$fd = @popen("/usr/sbin/setkey -c > /dev/null 2>&1", "w");
+	$fd = @popen("/usr/local/sbin/setkey -c > /dev/null 2>&1", "w");
 	if ($fd) {
 		fwrite($fd, "delete {$_GET['src']} {$_GET['dst']} {$_GET['proto']} {$_GET['spi']} ;\n");
 		pclose($fd);
@@ -59,7 +59,7 @@ if ($_GET['act'] == "del") {
 }
 
 /* query SAD */
-$fd = @popen("/usr/sbin/setkey -D", "r");
+$fd = @popen("/usr/local/sbin/setkey -D", "r");
 $sad = array();
 if ($fd) {
 	while (!feof($fd)) {

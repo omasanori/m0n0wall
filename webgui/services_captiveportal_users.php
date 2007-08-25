@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	Copyright (C) 2005 Pascal Suter <d-monodev@psuter.ch>.
 	All rights reserved. 
@@ -73,6 +73,7 @@ if ($changed) {
            		  'Pass-through MAC' => 'services_captiveportal_mac.php',
            		  'Allowed IP addresses' => 'services_captiveportal_ip.php',
            		  'Users' => 'services_captiveportal_users.php',
+           		  'Vouchers' => 'services_captiveportal_vouchers.php',
            		  'File Manager' => 'services_captiveportal_filemanager.php');
 	dynamic_tab_menu($tabs);
 ?> 
