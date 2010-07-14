@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2008 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@ $pgtitle = array("License");
 require("guiconfig.inc"); 
 ?>
 <?php include("fbegin.inc"); ?>
-            <p><strong>m0n0wall is Copyright &copy; 2002-2006 by Manuel Kasper 
+            <p><strong>m0n0wall&reg; is Copyright &copy; 2002-2010 by Manuel Kasper 
               (<a href="mailto:mk@neon1.net">mk@neon1.net</a>).<br>
               All rights reserved.</strong></p>
             <p> Redistribution and use in source and binary forms, with or without<br>
@@ -66,6 +66,7 @@ require("guiconfig.inc");
               ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED 
               OF THE<br>
               POSSIBILITY OF SUCH DAMAGE</strong>.</p>
+            <p>m0n0wall is a registered trademark of Manuel Kasper.</p>
             <hr size="1">
             <p>The following persons have contributed code to m0n0wall:</p>
             <p>Bob Zoller (<a href="mailto:bob@kludgebox.com">bob@kludgebox.com</a>)<br>
@@ -135,6 +136,7 @@ require("guiconfig.inc");
 			  <br>
               Michael Hanselmann (<a href="mailto:m0n0@hansmi.ch">m0n0@hansmi.ch</a>)<br>
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">IDE hard disk standby; exec.php arrow keys</font></em><br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">IPv6 support</font></em><br>
 			  <br>
               Audun Larsen (<a href="mailto:larsen@xqus.com">larsen@xqus.com</a>)<br>
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">CPU/memory usage display</font></em><br>
@@ -162,9 +164,18 @@ require("guiconfig.inc");
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">captive portal: disable concurrent logins, file manager</font></em><br>
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">Webgui users/groups</font></em><br>
 			  <br>
-              Jonathan De Graeve (<a href="mailto:Jonathan.De.Graeve@imelda.be">Jonathan.De.Graeve@imelda.be</a>)<br>
+              Jonathan De Graeve (<a href="mailto:m0n0wall@esstec.be">m0n0wall@esstec.be</a>)<br>
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">Complete captive portal RADIUS overhaul, cleanup</font></em><br>
               &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">captive portal: file manager, volume stats, FW rulepool (virtual port pool), MAC formatting, per-user bandwidth limitation</font></em><br>
+			  <br>
+              Marcel Wiget (<a href="mailto:mwiget@mac.com">mwiget@mac.com</a>)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">captive portal: Voucher authentication</font></em><br>
+			  <br>
+              Michael Iedema (<a href="mailto:michael@askozia.com">michael@askozia.com</a>)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">CD-ROM to HD installation feature</font></em><br>
+			  <br>
+              Andrew White (<a href="mailto:andywhite@gmail.com">andywhite@gmail.com</a>)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<em><font color="#666666">IPv6 improvements</font></em><br>
             <hr size="1">
             <p>m0n0wall is based upon/includes various free software packages, 
               listed below.<br>
@@ -203,10 +214,6 @@ All rights reserved.<br>
               Racoon (<a href="http://www.kame.net/racoon" target="_blank">http://www.kame.net/racoon</a>)<br>
               Copyright &copy; 1995-2002 WIDE Project. All rights reserved.<br>
               <br>
-              msntp (<a href="http://www.hpcf.cam.ac.uk/export" target="_blank">http://www.hpcf.cam.ac.uk/export</a>)<br>
-              Copyright &copy; 1996, 1997, 2000 N.M. Maclaren, University of Cambridge. 
-              All rights reserved.<br>
-              <br>
               UCD-SNMP (<a href="http://www.ece.ucdavis.edu/ucd-snmp" target="_blank">http://www.ece.ucdavis.edu/ucd-snmp</a>)<br>
               Copyright &copy; 1989, 1991, 1992 by Carnegie Mellon University.<br>
               Copyright &copy; 1996, 1998-2000 The Regents of the University of 
@@ -221,12 +228,15 @@ All rights reserved.<br>
 			  Copyright
 &copy; 2002 Thomas Quinot (thomas@cuivre.fr.eu.org)<br>
               <br>
-              BPALogin (<a href="http://bpalogin.sourceforge.net/" target="_blank">http://bpalogin.sourceforge.net</a>) - lightweight portable BIDS2 login client<br>
-              Copyright &copy; 2001-3 Shane Hyde, and others.<br>
-			  <br>
 			  wol (<a href="http://ahh.sourceforge.net/wol" target="_blank">http://ahh.sourceforge.net/wol</a>)<br>
 			  Copyright &copy; 2000,2001,2002,2003,2004 Thomas Krennwallner &lt;krennwallner@aon.at&gt;<br>
               <br>
               PHP RADIUS PECL package<br>
-              Copyright (c) 2003, Michael Bretterklieber &lt;michael@bretterklieber.com&gt;. All rights reserved.
+              Copyright (c) 2003, Michael Bretterklieber &lt;michael@bretterklieber.com&gt;. All rights reserved.<br>
+              <br>
+              ATAidle (<a href="http://www.cran.org.uk/bruce/software/ataidle/" target="_blank">http://www.cran.org.uk/bruce/software/ataidle</a>)<br>
+              Copyright 2004-2007 Bruce Cran &lt;bruce@cran.org.uk&gt;. All rights reserved.<br>
+              <br>
+              AICCU (<a href="http://www.sixxs.net/tools/aiccu/" target="_blank">http://www.sixxs.net/tools/aiccu/</a>)<br>
+              Copyright (C) SixXS Staff &lt;info@sixxs.net&gt;. All rights reserved.
 <?php include("fend.inc"); ?>

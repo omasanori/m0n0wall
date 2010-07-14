@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2008 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -49,10 +49,11 @@ function vpn_ipsec_configure($ipchg = false) {
 		
 		echo "Configuring IPsec VPN... ";
 	} else {
-		/* kill racoon */
+		/* kill racoon and dnswatch */
 		killbyname("racoon");
+		killbypid("{$g['varrun_path']}/dnswatch-ipsec.pid");
 		
-		/* wait for process to die */
+		/* wait for racoon process to die */
 		sleep(2);
 		
 		/* send a SIGKILL to be sure */
@@ -60,12 +61,15 @@ function vpn_ipsec_configure($ipchg = false) {
 	}
 	
 	/* flush SPD and SAD */
-	mwexec("/usr/sbin/setkey -FP");
-	mwexec("/usr/sbin/setkey -F");
+	mwexec("/usr/local/sbin/setkey -FP");
+	mwexec("/usr/local/sbin/setkey -F");
 	
-	/* prefer old SAs only for 30 seconds, then use the new one */
-	if (!isset($config['ipsec']['preferoldsa']))
-		mwexec("/sbin/sysctl -w net.key.preferred_oldsa=-30");
+	/* mark enc0 interface as up to enable filtering of decapsulated IPsec packets */
+	mwexec("/sbin/ifconfig enc0 up");
+	
+	/* prefer new or old SAs? */
+	if (!isset($ipseccfg['preferoldsa']))
+		mwexec("/sbin/sysctl -w net.key.preferred_oldsa=0");
 	else
 		mwexec("/sbin/sysctl -w net.key.preferred_oldsa=1");
 	
@@ -80,6 +84,9 @@ function vpn_ipsec_configure($ipchg = false) {
 		
 		if ((is_array($ipseccfg['tunnel']) && count($ipseccfg['tunnel'])) ||
 				isset($ipseccfg['mobileclients']['enable'])) {
+		
+			$dnswatch_list = array();
+			$rgmap = array();
 		
 			if (is_array($ipseccfg['tunnel']) && count($ipseccfg['tunnel'])) {
 			
@@ -100,6 +107,20 @@ function vpn_ipsec_configure($ipchg = false) {
 					if (isset($tunnel['disabled']))
 						continue;
 				
+					/* see if this tunnel has a hostname for the remote-gateway, and if so,
+					   try to resolve it now and add it to the list for dnswatch */
+					if (!is_ipaddr($tunnel['remote-gateway'])) {
+						$dnswatch_list[] = $tunnel['remote-gateway'];
+						$rgip = resolve_retry($tunnel['remote-gateway']);
+						
+						if (!$rgip)
+							continue;
+						
+					} else {
+						$rgip = $tunnel['remote-gateway'];
+					}
+					$rgmap[$tunnel['remote-gateway']] = $rgip;
+				
 					$ep = vpn_endpoint_determine($tunnel, $curwanip);
 					if (!$ep)
 						continue;
@@ -109,11 +130,11 @@ function vpn_ipsec_configure($ipchg = false) {
 					$spdconf .= "spdadd {$sa}/{$sn} " . 
 						"{$tunnel['remote-subnet']} any -P out ipsec " . 
 						"{$tunnel['p2']['protocol']}/tunnel/{$ep}-" .
-						"{$tunnel['remote-gateway']}/unique;\n";
+						"{$rgip}/unique;\n";
 						
 					$spdconf .= "spdadd {$tunnel['remote-subnet']} " . 
 						"{$sa}/{$sn} any -P in ipsec " . 
-						"{$tunnel['p2']['protocol']}/tunnel/{$tunnel['remote-gateway']}-" .
+						"{$tunnel['p2']['protocol']}/tunnel/{$rgip}-" .
 						"{$ep}/unique;\n";
 				}
 				
@@ -121,7 +142,7 @@ function vpn_ipsec_configure($ipchg = false) {
 				fclose($fd);
 			
 				/* load SPD */
-				mwexec("/usr/sbin/setkey -c < {$g['varetc_path']}/spd.conf");
+				mwexec("/usr/local/sbin/setkey -c < {$g['varetc_path']}/spd.conf");
 			}
 			
 			/* generate racoon.conf */
@@ -164,6 +185,10 @@ function vpn_ipsec_configure($ipchg = false) {
 				if (isset($tunnel['disabled']))
 					continue;
 				
+				$rgip = $rgmap[$tunnel['remote-gateway']];
+				if (!$rgip)
+					continue;
+				
 				$ep = vpn_endpoint_determine($tunnel, $curwanip);
 				if (!$ep)
 					continue;
@@ -182,7 +207,19 @@ function vpn_ipsec_configure($ipchg = false) {
 				} else if (isset($tunnel['p1']['myident']['ufqdn'])) {
 					$myidentt = "user_fqdn";
 					$myident = $tunnel['p1']['myident']['ufqdn'];
+				} else if (isset($tunnel['p1']['myident']['asn1dn'])) {
+					$myidentt = "asn1dn";
+					$myident = $tunnel['p1']['myident']['asn1dn'];
  				}
+
+				if (!($myidentt == "asn1dn" && $myident == "")) {
+					$myident = " \"".$myident."\"";
+				}
+					
+				$nattline = '';
+				if (isset($tunnel['natt'])) {
+					$nattline = "nat_traversal on;";
+				}
 				
 				if (isset($tunnel['p1']['authentication_method'])) {
 					$authmethod = $tunnel['p1']['authentication_method'];
@@ -239,16 +276,23 @@ function vpn_ipsec_configure($ipchg = false) {
 	peers_certfile "peer{$tunnelnumber}-signed.pem";
 EOD;
 					} 					
-				} 
+				}
+				
+				$dpddelay = 0;
+				if ($tunnel['dpddelay'])
+					$dpddelay = $tunnel['dpddelay'];
+				
 				$racoonconf .= <<<EOD
-remote {$tunnel['remote-gateway']} \{
+remote {$rgip} \{
 	exchange_mode {$tunnel['p1']['mode']};
-	my_identifier {$myidentt} "{$myident}";
+	my_identifier {$myidentt}{$myident};
+	{$nattline}
 	{$certline}
-	peers_identifier address {$tunnel['remote-gateway']};
+	peers_identifier address {$rgip};
 	initial_contact on;
 	support_proxy on;
 	proposal_check obey;
+	dpd_delay $dpddelay;
 
 	proposal \{
 		encryption_algorithm {$tunnel['p1']['encryption-algorithm']};
@@ -304,7 +348,19 @@ EOD;
 				} else if (isset($tunnel['p1']['myident']['ufqdn'])) {
 					$myidentt = "user_fqdn";
 					$myident = $tunnel['p1']['myident']['ufqdn'];
+				} else if (isset($tunnel['p1']['myident']['asn1dn'])) {
+					$myidentt = "asn1dn";
+					$myident = $tunnel['p1']['myident']['asn1dn'];
  				}
+
+				if (!($myidentt == "asn1dn" && $myident == "")) {
+					$myident = " \"".$myident."\"";
+				}
+					
+				$nattline = '';
+				if (isset($tunnel['natt'])) {
+					$nattline = "nat_traversal on;";
+				}
 				
 				if (isset($tunnel['p1']['authentication_method'])) {
 					$authmethod = $tunnel['p1']['authentication_method'];
@@ -346,16 +402,23 @@ EOD;
 
 					$certline = "certificate_type x509 \"server-mobile{$tunnelnumber}-signed.pem\" \"server-mobile{$tunnelnumber}-key.pem\";";
 				}
+				
+				$dpddelay = 0;
+				if ($tunnel['dpddelay'])
+					$dpddelay = $tunnel['dpddelay'];
+				
 				$racoonconf .= <<<EOD
 remote anonymous \{
 	exchange_mode {$tunnel['p1']['mode']};
-	my_identifier {$myidentt} "{$myident}";
+	my_identifier {$myidentt}{$myident};
+	{$nattline}
 	{$certline}
 	initial_contact on;
 	passive on;
 	generate_policy on;
 	support_proxy on;
 	proposal_check obey;
+	dpd_delay $dpddelay;
 
 	proposal \{
 		encryption_algorithm {$tunnel['p1']['encryption-algorithm']};
@@ -410,7 +473,10 @@ EOD;
 				foreach ($ipseccfg['tunnel'] as $tunnel) {
 					if (isset($tunnel['disabled']))
 						continue;
-					$pskconf .= "{$tunnel['remote-gateway']}	 {$tunnel['p1']['pre-shared-key']}\n";
+					$rgip = $rgmap[$tunnel['remote-gateway']];
+					if (!$rgip)
+						continue;
+					$pskconf .= "{$rgip}	 {$tunnel['p1']['pre-shared-key']}\n";
 				}
 			}
 			
@@ -427,6 +493,20 @@ EOD;
 			
 			/* start racoon */
 			mwexec("/usr/local/sbin/racoon -d -f {$g['varetc_path']}/racoon.conf");
+			
+			/* start dnswatch, if necessary */
+			if (count($dnswatch_list) > 0) {
+				$interval = 60;
+				if ($ipseccfg['dns-interval'])
+					$interval = $ipseccfg['dns-interval'];
+				
+				$hostnames = "";
+				foreach ($dnswatch_list as $dns)
+					$hostnames .= " " . escapeshellarg($dns);
+				
+				mwexec("/usr/local/bin/dnswatch {$g['varrun_path']}/dnswatch-ipsec.pid $interval " . 
+					escapeshellarg("/etc/rc.newipsecdns") . $hostnames);
+			}
 			
 			if (is_array($ipseccfg['tunnel'])) {
 				foreach ($ipseccfg['tunnel'] as $tunnel) {
@@ -490,17 +570,23 @@ function vpn_pptpd_configure() {
 				printf("Error: cannot open mpd.conf in vpn_pptpd_configure().\n");
 				return 1;
 			}
-				
+			
+			$nunits = $pptpdcfg['nunits'];
+			if (!$nunits)
+				$nunits = 16;
+			
 			$mpdconf = <<<EOD
+startup:
+
 pptpd:
 
 EOD;
 
-			for ($i = 0; $i < $g['n_pptp_units']; $i++) {
+			for ($i = 0; $i < $nunits; $i++) {
 				$mpdconf .= "	load pt{$i}\n";
 			}
 			
-			for ($i = 0; $i < $g['n_pptp_units']; $i++) {
+			for ($i = 0; $i < $nunits; $i++) {
 			
 				$clientip = long2ip(ip2long($pptpdcfg['remoteip']) + $i);
 				$ngif = "ng" . ($i+1);
@@ -528,7 +614,7 @@ pts:
 	set bundle enable crypt-reqd
 	set link yes acfcomp protocomp
 	set link no pap chap
-	set link enable chap-msv2
+	set link enable chap-msv2 eap
 	set link mtu 1460
 	set link keep-alive 10 60
 	set ipcp yes vjcomp
@@ -563,14 +649,15 @@ EOD;
 	set radius server {$pptpdcfg['radius']['server']} "{$pptpdcfg['radius']['secret']}"
 	set radius retries 3
 	set radius timeout 10
-	set bundle enable radius-auth
-	set bundle disable radius-fallback
+	set auth enable radius-auth
+	set auth disable internal
+	set eap enable radius-proxy
 
 EOD;
 
 				if (isset($pptpdcfg['radius']['accounting'])) {
 					$mpdconf .= <<<EOD
-	set bundle enable radius-acct
+	set auth enable radius-acct
 
 EOD;
 				}
@@ -588,15 +675,14 @@ EOD;
 			
 			$mpdlinks = "";
 			
-			for ($i = 0; $i < $g['n_pptp_units']; $i++) {
+			for ($i = 0; $i < $nunits; $i++) {
 				$mpdlinks .= <<<EOD
 
 pt{$i}:
-	set link type pptp
+	set phys type pptp
 	set pptp enable incoming
 	set pptp disable originate
 	set pptp disable windowing
-	set pptp self 127.0.0.1
 
 EOD;
 			}
@@ -623,7 +709,7 @@ EOD;
 			chmod("{$g['varetc_path']}/mpd-vpn/mpd.secret", 0600);
 			
 			/* fire up mpd */
-			mwexec("/usr/local/sbin/mpd -b -d {$g['varetc_path']}/mpd-vpn -p {$g['varrun_path']}/mpd-vpn.pid pptpd");
+			mwexec("/usr/local/sbin/mpd4 -b -d {$g['varetc_path']}/mpd-vpn -p {$g['varrun_path']}/mpd-vpn.pid pptpd");
 			
 			break;
 			
@@ -632,8 +718,9 @@ EOD;
 	}
 	
 	if (!$g['booting']) {
-		/* reload the filter */
+		/* reload the filter and traffic shaper */
 		filter_configure();
+		shaper_configure();
 	}
 	
 	if ($g['booting'])

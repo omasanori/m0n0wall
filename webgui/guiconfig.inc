@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -88,16 +88,17 @@ $medias = array("auto" => "autoselect", "100full" => "100BASE-TX full-duplex",
 	"10half" => "10BASE-T half-duplex", "1000full" => "1000BASE-TX full-duplex");
 	
 /* platforms that support firmware updating */
-$fwupplatforms = array('net45xx', 'net48xx', 'generic-pc', 'wrap');
+$fwupplatforms = array('generic-pc', 'embedded');
 
 /* IPsec defines */
 $my_identifier_list = array('myaddress' => 'My IP address',
 							'address' => 'IP address',
 							'fqdn' => 'Domain name',
-							'user_fqdn' => 'User FQDN');
+							'user_fqdn' => 'User FQDN',
+							'asn1dn' => 'RSA Cert Subject');
 
 $p1_ealgos = array('des' => 'DES', '3des' => '3DES', 'blowfish' => 'Blowfish', 
-					'cast128' => 'CAST128');
+					'cast128' => 'CAST128', 'aes' => 'AES');
 $p2_ealgos = array('des' => 'DES', '3des' => '3DES', 'blowfish' => 'Blowfish',
 					'cast128' => 'CAST128', 'rijndael' => 'Rijndael (AES)');
 $p1_halgos = array('sha1' => 'SHA1', 'md5' => 'MD5');
@@ -105,6 +106,8 @@ $p1_authentication_methods = array('pre_shared_key' => 'Pre-shared key', 'rsasig
 $p2_halgos = array('hmac_sha1' => 'SHA1', 'hmac_md5' => 'MD5');
 $p2_protos = array('esp' => 'ESP', 'ah' => 'AH');
 $p2_pfskeygroups = array('0' => 'off', '1' => '1', '2' => '2', '5' => '5');
+
+$pptpd_subnet_sizes = array(16 => 28, 32 => 27, 64 => 26, 128 => 25, 256 => 24);
 
 function do_input_validation($postdata, $reqdfields, $reqdfieldsn, $input_errors) {
 	
@@ -124,7 +127,7 @@ function do_input_validation($postdata, $reqdfields, $reqdfieldsn, $input_errors
 
 function print_input_errors($input_errors) {
 	echo "<p><table border=\"0\" cellspacing=\"0\" cellpadding=\"4\" width=\"100%\">\n";
-	echo "<tr><td bgcolor=\"#A12A2A\" width=\"36\" align=\"center\" valign=\"top\"><img src=\"/err.gif\" width=\"28\" height=\"32\"></td>\n";
+	echo "<tr><td bgcolor=\"#A12A2A\" width=\"36\" align=\"center\" valign=\"top\"><img src=\"/err.gif\" width=\"28\" height=\"32\" alt=\"\"></td>\n";
 	echo "<td bgcolor=\"#FFD9D1\" style=\"padding-left: 8px; padding-top: 6px\">";
 	
 	echo "<span class=\"errmsg\"><p>The following input errors were detected:<ul>\n";
@@ -169,28 +172,16 @@ function verify_gzip_file($fname) {
 
 function print_info_box_np($msg) {
 	echo "<table border=\"0\" cellspacing=\"0\" cellpadding=\"4\" width=\"100%\">\n";
-	echo "<tr><td bgcolor=\"#687BA4\" align=\"center\" valign=\"top\" width=\"36\"><img src=\"/exclam.gif\" width=\"28\" height=\"32\"></td>\n";
+	echo "<tr><td bgcolor=\"#687BA4\" align=\"center\" valign=\"top\" width=\"36\"><img src=\"/exclam.gif\" width=\"28\" height=\"32\" alt=\"\"></td>\n";
 	echo "<td bgcolor=\"#D9DEE8\" style=\"padding-left: 8px\">";
 	echo $msg;
 	echo "</td></tr></table>";
 }
 
 function print_info_box($msg) {
-	echo "<p>";
+	echo "<div style=\"margin-bottom: 12px\">";
 	print_info_box_np($msg);
-	echo "</p>";
-}
-
-function format_bytes($bytes) {
-	if ($bytes >= 1073741824) {
-		return sprintf("%.2f GB", $bytes/1073741824);
-	} else if ($bytes >= 1048576) {
-		return sprintf("%.2f MB", $bytes/1048576);
-	} else if ($bytes >= 1024) {
-		return sprintf("%.0f KB", $bytes/1024);
-	} else {
-		return sprintf("%d bytes", $bytes);
-	}
+	echo "</div>";
 }
 
 function get_std_save_message($ok) {
@@ -247,11 +238,11 @@ function pprint_port($port) {
 /* sort by interface only, retain the original order of rules that apply to
    the same interface */
 function filter_rules_sort() {
-	global $g, $config;
+	global $g, $config, $configname;
 	
 	/* mark each rule with the sequence number (to retain the order while sorting) */
-	for ($i = 0; isset($config['filter']['rule'][$i]); $i++)
-		$config['filter']['rule'][$i]['seq'] = $i;
+	for ($i = 0; isset($config['filter'][$configname][$i]); $i++)
+		$config['filter'][$configname][$i]['seq'] = $i;
 	
 	function filtercmp($a, $b) {
 		if ($a['interface'] == $b['interface'])
@@ -260,11 +251,11 @@ function filter_rules_sort() {
 			return -strcmp($a['interface'], $b['interface']);
 	}
 	
-	usort($config['filter']['rule'], "filtercmp");
+	usort($config['filter'][$configname], "filtercmp");
 	
 	/* strip the sequence numbers again */
-	for ($i = 0; isset($config['filter']['rule'][$i]); $i++)
-		unset($config['filter']['rule'][$i]['seq']);
+	for ($i = 0; isset($config['filter'][$configname][$i]); $i++)
+		unset($config['filter'][$configname][$i]['seq']);
 }
 
 function nat_rules_sort() {
@@ -363,13 +354,13 @@ function admin_users_sort() {
 }
 
 function staticroutes_sort() {
-	global $g, $config;
+	global $g, $config, $configname;
 
 	function staticroutecmp($a, $b) {
 		return strcmp($a['network'], $b['network']);
 	}
 
-	usort($config['staticroutes']['route'], "staticroutecmp");
+	usort($config['staticroutes'][$configname], "staticroutecmp");
 }
 
 function hosts_sort() {

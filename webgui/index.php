@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -35,17 +35,11 @@ require("guiconfig.inc");
 
 /* find out whether there's hardware encryption (hifn) */
 unset($hwcrypto);
-$fd = @fopen("{$g['varlog_path']}/dmesg.boot", "r");
-if ($fd) {
-	while (!feof($fd)) {
-		$dmesgl = fgets($fd);
-		if (preg_match("/^hifn.: (.*?),/", $dmesgl, $matches)) {
-			$hwcrypto = $matches[1];
-			break;
-		}
-	}
-	fclose($fd);
-}
+$dmesg = system_get_dmesg_boot();
+if (preg_match("/^hifn.: (.*?),/m", $dmesg, $matches))
+	$hwcrypto = $matches[1];
+
+$specplatform = system_identify_specific_platform();
 
 if ($_POST) {
 	$config['system']['notes'] = base64_encode($_POST['notes']);
@@ -57,12 +51,12 @@ if ($_POST) {
 ?>
 <?php include("fbegin.inc"); ?>
 <form action="" method="POST">
-            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" summary="content pane">
               <tr align="center" valign="top"> 
                 <td height="10" colspan="2">&nbsp;</td>
               </tr>
               <tr align="center" valign="top"> 
-                <td height="170" colspan="2"><img src="logobig.gif" width="520" height="149"></td>
+                <td height="170" colspan="2"><img src="logobig.gif" width="520" height="149" alt=""></td>
               </tr>
               <tr> 
                 <td colspan="2" class="listtopic">System information</td>
@@ -85,7 +79,7 @@ if ($_POST) {
               <tr> 
                 <td width="25%" class="vncellt">Platform</td>
                 <td width="75%" class="listr"> 
-                  <?=htmlspecialchars($g['fullplatform']);?>
+                  <?=htmlspecialchars($specplatform['descr']); ?>
                 </td>
               </tr><?php if ($hwcrypto): ?>
               <tr> 
@@ -145,14 +139,128 @@ $freeMem = $memory[4];
 $usedMem = $totalMem - $freeMem;
 $memUsage = round(($usedMem * 100) / $totalMem, 0);
 		  
-echo " <img src='bar_left.gif' height='15' width='4' border='0' align='absmiddle'>";
-echo "<img src='bar_blue.gif' height='15' width='" . $memUsage . "' border='0' align='absmiddle'>";
-echo "<img src='bar_gray.gif' height='15' width='" . (100 - $memUsage) . "' border='0' align='absmiddle'>";
-echo "<img src='bar_right.gif' height='15' width='5' border='0' align='absmiddle'> ";
+echo " <img src='bar_left.gif' height='15' width='4' border='0' align='middle' alt=''>";
+echo "<img src='bar_blue.gif' height='15' width='" . $memUsage . "' border='0' align='middle' alt=''>";
+echo "<img src='bar_gray.gif' height='15' width='" . (100 - $memUsage) . "' border='0' align='middle' alt=''>";
+echo "<img src='bar_right.gif' height='15' width='5' border='0' align='middle' alt=''> ";
 echo $memUsage . "%";
 ?>
                 </td>
               </tr>
+			  <?php
+					if ( isset($config['system']['webgui']['mbmon']['enable']) ) {
+								if ($config['system']['webgui']['mbmon']['type'] == 'F') {
+                                exec("/usr/local/bin/mbmon -f -c1 -r 2>/dev/null ", $mbmonop, $error);
+								} else {
+								exec("/usr/local/bin/mbmon -c1 -r 2>/dev/null ", $mbmonop, $error);
+								}
+                                if (!$error){
+                        ?>
+				<tr>
+				<td width="25%" class="vncellt">System Temperatures</td>
+				<td width="75%" class="listr">
+				<table width="100%" >
+                                           <?php
+                                                foreach ($mbmonop as $mbival) {
+                                                        if (preg_match('/^TEMP/',$mbival)) {
+																$mbmonp = explode(':',$mbival);
+																?>
+				<tr>
+				<td align="right" width="15%" class="listsensor">
+																<?php
+                                                                echo htmlspecialchars(str_replace('TEMP', 'Sensor ',$mbmonp[0]));
+																?>
+				</td>
+				<td align="left" width="85%" class="listsensorval">
+																<?php
+																echo htmlspecialchars($mbmonp[1]);
+																if ($config['system']['webgui']['mbmon']['type'] == 'F') {
+                                                                echo '&deg;F</td></tr>';
+																} else {
+																echo '&deg;C</td></tr>';
+																}
+																
+                                                        }
+                                                }
+                                          ?>
+				</table></td>
+				</tr>
+				<tr>
+				<td width="25%" class="vncellt">System Fans</td>
+				<td width="75%" class="listr">
+				<table width="100%" >
+										<?php
+                                                foreach ($mbmonop as $mbival) {
+                                                        if (preg_match('/^FAN/',$mbival)) {
+																$mbmonp = explode(':',$mbival);
+																?>
+				<tr>
+				<td align="right" width="15%" class="listsensor">
+																<?php
+                                                                echo htmlspecialchars(str_replace('FAN', 'Fan ',$mbmonp[0]));
+																?>
+				</td>
+				<td align="left" width="85%" class="listsensorval">
+																<?php
+																echo htmlspecialchars($mbmonp[1]);
+                                                                echo ' rpm</td></tr>';
+                                                        }
+                                                }
+                                        ?>
+				</table></td>
+				</tr>
+				<tr>
+				<td width="25%" class="vncellt">System Voltages</td>
+				<td width="75%" class="listr">
+				<table width="100%" >
+										<?php
+                                                foreach ($mbmonop as $mbival) {
+                                                        if (preg_match('/^V\d+/',$mbival)) {
+																$oldvolts = array('V33', 'V50P','V12P', 'V12N', 'V50N');
+                                                                $nicevolts = array('+3.3v','+5v','+12v','-12v','-5v');
+																$mbmonp = explode(':',$mbival);
+																?>
+				<tr>
+				<td align="right" width="15%" class="listsensor">
+																<?php
+                                                                echo str_replace($oldvolts,$nicevolts,$mbmonp[0]);
+																?>
+				</td>
+				<td align="left" width="85%" class="listsensorval">
+																<?php
+																echo htmlspecialchars($mbmonp[1]);
+                                                                echo ' V</td></tr>';
+																
+                                                        }
+                                                }
+                                        ?>
+				</table></td>
+				</tr>
+				<tr>
+				<td width="25%" class="vncellt">Core Voltages</td>
+				<td width="75%" class="listr">
+				<table width="100%" >
+										<?php
+                                                foreach ($mbmonop as $mbival) {
+                                                        if (preg_match('/^VC/',$mbival)) {
+																$mbmonp = explode(':',$mbival);
+																?>
+				<tr>
+				<td align="right" width="15%" class="listsensor">
+																<?php
+                                                                echo htmlspecialchars(str_replace('VC', 'Core ',$mbmonp[0]));
+																?></td>
+				<td align="left" width="85%" class="listsensorval">
+																<?php
+																echo htmlspecialchars($mbmonp[1]);
+                                                                echo ' V</td></tr>';
+																
+                                                        }
+                                                }
+										echo '</table></td></tr>';
+                                }
+                        }
+						?>
               <tr> 
                 <td width="25%" class="vncellt" valign="top">Notes</td>
                 <td width="75%" class="listr">

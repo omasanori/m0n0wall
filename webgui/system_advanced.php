@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -31,10 +31,8 @@
 
 $pgtitle = array("System", "Advanced setup");
 require("guiconfig.inc");
-
-$pconfig['filteringbridge_enable'] = isset($config['bridge']['filteringbridge']);
-$pconfig['ipv6nat_enable'] = isset($config['diag']['ipv6nat']['enable']);
-$pconfig['ipv6nat_ipaddr'] = $config['diag']['ipv6nat']['ipaddr'];
+$pconfig['nospoofcheck'] = isset($config['bridge']['nospoofcheck']);
+$pconfig['mbmon'] = isset($config['system']['webgui']['mbmon']['enable']);
 $pconfig['cert'] = base64_decode($config['system']['webgui']['certificate']);
 $pconfig['key'] = base64_decode($config['system']['webgui']['private-key']);
 $pconfig['disableconsolemenu'] = isset($config['system']['disableconsolemenu']);
@@ -45,19 +43,38 @@ if ($g['platform'] == "generic-pc")
 	$pconfig['harddiskstandby'] = $config['system']['harddiskstandby'];
 $pconfig['bypassstaticroutes'] = isset($config['filter']['bypassstaticroutes']);
 $pconfig['noantilockout'] = isset($config['system']['webgui']['noantilockout']);
+$pconfig['ipsecdnsinterval'] = $config['ipsec']['dns-interval'];
 $pconfig['tcpidletimeout'] = $config['filter']['tcpidletimeout'];
 $pconfig['preferoldsa_enable'] = isset($config['ipsec']['preferoldsa']);
 $pconfig['polling_enable'] = isset($config['system']['polling']);
 $pconfig['ipfstatentries'] = $config['diag']['ipfstatentries'];
+$pconfig['enableipv6'] = isset($config['system']['enableipv6']);
+$pconfig['portrangelow'] = $config['nat']['portrange-low'];
+$pconfig['portrangehigh'] = $config['nat']['portrange-high'];
 
 if ($_POST) {
 
 	unset($input_errors);
+	$savemsgadd = "";
+	
+	if ($_POST['gencert']) {
+		/* custom certificate generation requested */
+		$ck = generate_self_signed_cert("m0n0wall", $config['system']['hostname'] . "." . $config['system']['domain']);
+		
+		if ($ck === false) {
+			$input_errors[] = "A self-signed certificate could not be generated because the system's clock is not set.";
+		} else {
+			$_POST['cert'] = $ck['cert'];
+		 	$_POST['key'] = $ck['key'];
+			$savemsgadd = "<br><br>A self-signed certificate and private key have been automatically generated.";
+		}
+	}
+	
 	$pconfig = $_POST;
 
 	/* input validation */
-	if ($_POST['ipv6nat_enable'] && !is_ipaddr($_POST['ipv6nat_ipaddr'])) {
-		$input_errors[] = "You must specify an IP address to NAT IPv6 packets.";
+	if ($_POST['ipsecdnsinterval'] && !is_numericint($_POST['ipsecdnsinterval'])) {
+		$input_errors[] = "The IPsec DNS check interval must be an integer.";
 	}
 	if ($_POST['tcpidletimeout'] && !is_numericint($_POST['tcpidletimeout'])) {
 		$input_errors[] = "The TCP idle timeout must be an integer.";
@@ -73,11 +90,14 @@ if ($_POST) {
 		if (!strstr($_POST['key'], "BEGIN RSA PRIVATE KEY") || !strstr($_POST['key'], "END RSA PRIVATE KEY"))
 			$input_errors[] = "This key does not appear to be valid.";
 	}
+	if (($_POST['portrangelow'] || $_POST['portrangehigh']) &&
+		(!is_port($_POST['portrangelow']) || !is_port($_POST['portrangehigh'])))
+		$input_errors[] = "The outbound NAT port range start and end must be integers between 1 and 65535.";
 
 	if (!$input_errors) {
-		$config['bridge']['filteringbridge'] = $_POST['filteringbridge_enable'] ? true : false;
-		$config['diag']['ipv6nat']['enable'] = $_POST['ipv6nat_enable'] ? true : false;
-		$config['diag']['ipv6nat']['ipaddr'] = $_POST['ipv6nat_ipaddr'];
+		$config['bridge']['nospoofcheck'] = $_POST['nospoofcheck'] ? true : false;
+		$config['system']['webgui']['mbmon']['enable'] = $_POST['mbmon'] ? true : false;
+		$config['system']['webgui']['mbmon']['type'] = $_POST['mbmontype'];
 		$oldcert = $config['system']['webgui']['certificate'];
 		$oldkey = $config['system']['webgui']['private-key'];
 		$config['system']['webgui']['certificate'] = base64_encode($_POST['cert']);
@@ -92,21 +112,31 @@ if ($_POST) {
 		}
 		$config['system']['webgui']['noantilockout'] = $_POST['noantilockout'] ? true : false;
 		$config['filter']['bypassstaticroutes'] = $_POST['bypassstaticroutes'] ? true : false;
+		$oldtcpidletimeout = $config['filter']['tcpidletimeout'];
 		$config['filter']['tcpidletimeout'] = $_POST['tcpidletimeout'];
+		$oldipsecdnsinterval = $config['ipsec']['dns-interval'];
+		$config['ipsec']['dns-interval'] = $_POST['ipsecdnsinterval'];
 		$oldpreferoldsa = $config['ipsec']['preferoldsa'];
 		$config['ipsec']['preferoldsa'] = $_POST['preferoldsa_enable'] ? true : false;
+		$oldpolling = $config['system']['polling'];
 		$config['system']['polling'] = $_POST['polling_enable'] ? true : false;
 		if (!$_POST['ipfstatentries'])
 			unset($config['diag']['ipfstatentries']);
 		else
 			$config['diag']['ipfstatentries'] = $_POST['ipfstatentries'];	
+		$config['system']['enableipv6'] = $_POST['enableipv6'] ? true : false;
+		$config['nat']['portrange-low'] = $_POST['portrangelow'];
+		$config['nat']['portrange-high'] = $_POST['portrangehigh'];
 		
 		write_config();
 		
 		if (($config['system']['webgui']['certificate'] != $oldcert)
-				|| ($config['system']['webgui']['private-key'] != $oldkey)) {
+				|| ($config['system']['webgui']['private-key'] != $oldkey)
+				|| ($config['filter']['tcpidletimeout'] != $oldtcpidletimeout)
+				|| ($config['system']['polling'] != $oldpolling)) {
 			touch($d_sysrebootreqd_path);
-		} else if (($g['platform'] == "generic-pc") && ($config['system']['harddiskstandby'] != $oldharddiskstandby)) {
+		}
+		if (($g['platform'] == "generic-pc") && ($config['system']['harddiskstandby'] != $oldharddiskstandby)) {
 			if (!$config['system']['harddiskstandby']) {
 				// Reboot needed to deactivate standby due to a stupid ATA-protocol
 				touch($d_sysrebootreqd_path);
@@ -122,51 +152,39 @@ if ($_POST) {
 			config_lock();
 			$retval = filter_configure();
 			$retval |= interfaces_optional_configure();
-			if ($config['ipsec']['preferoldsa'] != $oldpreferoldsa)
+			if ($config['ipsec']['preferoldsa'] != $oldpreferoldsa || $config['ipsec']['dns-interval'] != $oldipsecdnsinterval)
 				$retval |= vpn_ipsec_configure();
-			$retval |= system_polling_configure();
 			$retval |= system_set_termcap();
 			config_unlock();
 		}
-		$savemsg = get_std_save_message($retval);
+		$savemsg = get_std_save_message($retval) . $savemsgadd;
 	}
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
-<!--
-function enable_change(enable_over) {
-	if (document.iform.ipv6nat_enable.checked || enable_over) {
-		document.iform.ipv6nat_ipaddr.disabled = 0;
-	} else {
-		document.iform.ipv6nat_ipaddr.disabled = 1;
-	}
-}
-// -->
-</script>
             <?php if ($input_errors) print_input_errors($input_errors); ?>
             <?php if ($savemsg) print_info_box($savemsg); ?>
             <p><span class="vexpl"><span class="red"><strong>Note: </strong></span>the 
               options on this page are intended for use by advanced users only, 
               and there's <strong>NO</strong> support for them.</span></p>
             <form action="system_advanced.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
-                  <td colspan="2" valign="top" class="listtopic">IPv6 tunneling</td>
+                  <td colspan="2" valign="top" class="listtopic">IPv6 support</td>
                 </tr>
                 <tr> 
                   <td width="22%" valign="top" class="vncell">&nbsp;</td>
                   <td width="78%" class="vtable"> 
-                    <input name="ipv6nat_enable" type="checkbox" id="ipv6nat_enable" value="yes" <?php if ($pconfig['ipv6nat_enable']) echo "checked"; ?> onclick="enable_change(false)"> 
-                    <strong>NAT encapsulated IPv6 packets (IP protocol 41/RFC2893) 
-                    to:</strong><br> <br> <input name="ipv6nat_ipaddr" type="text" class="formfld" id="ipv6nat_ipaddr" size="20" value="<?=htmlspecialchars($pconfig['ipv6nat_ipaddr']);?>"> 
-                    &nbsp;(IP address)<span class="vexpl"><br>
-                    Don't forget to add a firewall rule to permit IPv6 packets!</span></td>
+                    <input name="enableipv6" type="checkbox" id="enableipv6" value="yes" <?php if ($pconfig['enableipv6']) echo "checked"; ?>>
+                    <strong>Enable IPv6 support</strong><br>
+                    After enabling IPv6 support, configure IPv6 addresses on your LAN and WAN interfaces, then add 
+                    IPv6 firewall rules.<br>
+                    Note: you <strong>must set an IPv6 address on the LAN interface</strong> for the IPv6 support to work.
                 </tr>
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
-                    <input name="Submit" type="submit" class="formbtn" value="Save" onclick="enable_change(true)"> 
+                    <input name="Submit" type="submit" class="formbtn" value="Save"> 
                   </td>
                 </tr>
                 <tr> 
@@ -178,18 +196,34 @@ function enable_change(enable_over) {
                 <tr> 
                   <td width="22%" valign="top" class="vncell">&nbsp;</td>
                   <td width="78%" class="vtable"> 
-                    <input name="filteringbridge_enable" type="checkbox" id="filteringbridge_enable" value="yes" <?php if ($pconfig['filteringbridge_enable']) echo "checked"; ?>>
                     <strong>Enable filtering bridge</strong><span class="vexpl"><br>
-                    This will cause bridged packets to pass through the packet 
-                    filter in the same way as routed packets do (by default bridged 
-                    packets are always passed). If you enable this option, you'll 
-                    have to add filter rules to selectively permit traffic from 
-                    bridged interfaces.</span></td>
+                    This is no longer available because it is not applicable with
+                    if_bridge, the new way of bridging in FreeBSD. Filtering always
+                    occurs on the member interfaces of the bridge. It is retained
+                    here as a notice for those accustomed to using this option.
+                    </span></td>
+                </tr>
+                
+				<tr> 
+                  <td colspan="2" class="list" height="12"></td>
+                </tr>
+				<tr> 
+                  <td colspan="2" valign="top" class="listtopic">Spoof Checking</td>
+                </tr>
+                <tr> 
+                  <td width="22%" valign="top" class="vncell">&nbsp;</td>
+                  <td width="78%" class="vtable"> 
+				    <input name="nospoofcheck" type="checkbox" id="nospoofcheck" value="yes" <?php if ($pconfig['nospoofcheck']) echo "checked"; ?>>
+                    <strong>Disable Spoof Checking on bridge</strong><span class="vexpl"><br>
+                    Spoof Checking blocks packets not sourced from the subnet of the
+					interface the packet was recieved on.<br>
+					This option only affects bridged interfaces.
+                    </span></td>
                 </tr>
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
-                    <input name="Submit" type="submit" class="formbtn" value="Save" onclick="enable_change(true)"> 
+                    <input name="Submit" type="submit" class="formbtn" value="Save"> 
                   </td>
                 </tr>
                 <tr> 
@@ -215,14 +249,67 @@ function enable_change(enable_over) {
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
-                    <input name="Submit" type="submit" class="formbtn" value="Save" onclick="enable_change(true)"> 
+					<input name="gencert" type="submit" class="formbtn" value="Generate self-signed certificate"> 
+                    <input name="Submit" type="submit" class="formbtn" value="Save"> 
                   </td>
                 </tr>
                 <tr> 
                   <td colspan="2" class="list" height="12"></td>
                 </tr>
                 <tr> 
+                  <td colspan="2" valign="top" class="listtopic">Firewall</td>
+                </tr>
+				<tr>
+                  <td valign="top" class="vncell">TCP idle timeout </td>
+                  <td class="vtable">                    <span class="vexpl">
+                    <input name="tcpidletimeout" type="text" class="formfld" id="tcpidletimeout" size="8" value="<?=htmlspecialchars($pconfig['tcpidletimeout']);?>">
+                    seconds<br>
+    Idle TCP connections will be removed from the state table after no packets have been received for the specified number of seconds. Don't set this too high or your state table could become full of connections that have been improperly shut down. The default is 2.5 hours.</span></td>
+			    </tr>
+				<tr> 
+                  <td width="22%" valign="top" class="vncell">Static route filtering</td>
+                  <td width="78%" class="vtable"> 
+                    <input name="bypassstaticroutes" type="checkbox" id="bypassstaticroutes" value="yes" <?php if ($pconfig['bypassstaticroutes']) echo "checked"; ?>>
+                    <strong>Bypass firewall rules for traffic on the same interface</strong><br>
+					This option only applies if you have defined one or more static routes. If it is enabled, traffic that enters and leaves through the same interface will not be checked by the firewall. This may be desirable in some situations where multiple subnets are connected to the same interface. </td>
+                </tr>
+				<tr>
+                  <td valign="top" class="vncell">IPsec fragmented packets</td>
+                  <td class="vtable">
+                    <input name="allowipsecfrags" type="checkbox" id="allowipsecfrags" value="yes" <?php if ($pconfig['allowipsecfrags']) echo "checked"; ?>>
+                    <strong>Allow fragmented IPsec packets</strong><span class="vexpl"><br>
+    This will cause m0n0wall to allow fragmented IP packets that are encapsulated in IPsec ESP packets.</span></td>
+			    </tr>
+				<tr>
+                  <td valign="top" class="vncell">Outbound NAT port range</td>
+                  <td class="vtable"><span class="vexpl">
+                    <input name="portrangelow" type="text" class="formfld" id="portrangelow" size="5" value="<?=htmlspecialchars($pconfig['portrangelow']);?>"> - 
+					<input name="portrangehigh" type="text" class="formfld" id="portrangehigh" size="5" value="<?=htmlspecialchars($pconfig['portrangehigh']);?>">
+                    <br>
+    This setting controls the range from which ports are randomly picked for outbound NAT. Do not change this unless you know exactly what you're doing.</span></td>
+			    </tr>
+                <tr> 
+                  <td colspan="2" class="list" height="12"></td>
+                </tr>
+                <tr> 
                   <td colspan="2" valign="top" class="listtopic">Miscellaneous</td>
+                </tr>
+				<tr> 
+				<td width="22%" valign="top" class="vncell">Motherboard Monitor</td>
+                <td width="78%" class="vtable"> 
+				<table >
+					<tr>
+					<td > 
+                    <select class="formfld" name="mbmontype" align="bottom">
+					<option <?php if(!$config['system']['webgui']['mbmon']['type'] == 'F') echo('selected');?> value="C">&deg;C</option>
+					<option <?php if($config['system']['webgui']['mbmon']['type'] == 'F') echo('selected');?> value="F">&deg;F</option>
+					</select></td>
+					<td>
+						<input id="mbmon" <?php if ($pconfig['mbmon']) echo "checked"; ?>=""  name="mbmon" type="checkbox" value="yes"><strong> Enable Motherboard Monitoring</strong></td>
+						</tr>
+					</table>
+					<span class="vexpl">
+                    This will display Motherboard information on the system status page for supported chipsets.  On some systems this may cause a delay in loading the system status page or wrong temperatures.</span></td>
                 </tr>
 				<tr> 
                   <td width="22%" valign="top" class="vncell">Console menu </td>
@@ -239,18 +326,13 @@ function enable_change(enable_over) {
     This will cause m0n0wall not to check for newer firmware versions when the <a href="system_firmware.php">System: Firmware</a> page is viewed.</span></td>
 			    </tr>
 				<tr>
-                  <td valign="top" class="vncell">IPsec fragmented packets</td>
-                  <td class="vtable">
-                    <input name="allowipsecfrags" type="checkbox" id="allowipsecfrags" value="yes" <?php if ($pconfig['allowipsecfrags']) echo "checked"; ?>>
-                    <strong>Allow fragmented IPsec packets</strong><span class="vexpl"><br>
-    This will cause m0n0wall to allow fragmented IP packets that are encapsulated in IPsec ESP packets.</span></td>
-			    </tr>
-				<tr>
-                  <td valign="top" class="vncell">TCP idle timeout </td>
+                  <td valign="top" class="vncell">IPsec DNS check interval</td>
                   <td class="vtable">                    <span class="vexpl">
-                    <input name="tcpidletimeout" type="text" class="formfld" id="tcpidletimeout" size="8" value="<?=htmlspecialchars($pconfig['tcpidletimeout']);?>">
+                    <input name="ipsecdnsinterval" type="text" class="formfld" id="ipsecdnsinterval" size="8" value="<?=htmlspecialchars($pconfig['ipsecdnsinterval']);?>">
                     seconds<br>
-    Idle TCP connections will be removed from the state table after no packets have been received for the specified number of seconds. Don't set this too high or your state table could become full of connections that have been improperly shut down. The default is 2.5 hours.</span></td>
+    If at least one IPsec tunnel has a host name (instead of an IP address) as the remote gateway, a DNS lookup
+    is performed at the interval specified here, and if the IP address that the host name resolved to has changed,
+    the IPsec tunnel is reconfigured. The default is 60 seconds.</span></td>
 			    </tr>
 <?php if ($g['platform'] == "generic-pc"): ?>
 				<tr> 
@@ -275,13 +357,6 @@ function enable_change(enable_over) {
                     <strong>Keep diagnostics in navigation expanded </strong></td>
                 </tr>
 				<tr> 
-                  <td width="22%" valign="top" class="vncell">Static route filtering</td>
-                  <td width="78%" class="vtable"> 
-                    <input name="bypassstaticroutes" type="checkbox" id="bypassstaticroutes" value="yes" <?php if ($pconfig['bypassstaticroutes']) echo "checked"; ?>>
-                    <strong>Bypass firewall rules for traffic on the same interface</strong><br>
-					This option only applies if you have defined one or more static routes. If it is enabled, traffic that enters and leaves through the same interface will not be checked by the firewall. This may be desirable in some situations where multiple subnets are connected to the same interface. </td>
-                </tr>
-				<tr> 
                   <td width="22%" valign="top" class="vncell">webGUI anti-lockout</td>
                   <td width="78%" class="vtable"> 
                     <input name="noantilockout" type="checkbox" id="noantilockout" value="yes" <?php if ($pconfig['noantilockout']) echo "checked"; ?>>
@@ -295,7 +370,7 @@ function enable_change(enable_over) {
                   <td width="78%" class="vtable"> 
                     <input name="preferoldsa_enable" type="checkbox" id="preferoldsa_enable" value="yes" <?php if ($pconfig['preferoldsa_enable']) echo "checked"; ?>>
                     <strong>Prefer old IPsec SAs</strong><br>
-					By default, if several SAs match, the newest one is preferred if it's at least 30 seconds old.
+					By default, if several SAs match, the newest one is preferred.
 					Select this option to always prefer old SAs over new ones.
 					</td>
                 </tr>
@@ -322,14 +397,9 @@ function enable_change(enable_over) {
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
-                    <input name="Submit" type="submit" class="formbtn" value="Save" onclick="enable_change(true)"> 
+                    <input name="Submit" type="submit" class="formbtn" value="Save"> 
                   </td>
                 </tr>
               </table>
 </form>
-<script language="JavaScript">
-<!--
-enable_change(false);
-//-->
-</script>
 <?php include("fend.inc"); ?>

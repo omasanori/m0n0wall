@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -38,13 +38,21 @@ if ($_GET['if'])
 	
 if ($curif == "wan")
 	$ifnum = get_real_wan_interface();
+elseif ($curif == "SixXS")
+	if (isset($wancfg['aiccu']['ayiya'])) {
+		$ifnum = 'tun0';
+	} else {
+		$ifnum = 'gif0';
+	}
 else
 	$ifnum = $config['interfaces'][$curif]['if'];
 ?>
 <?php include("fbegin.inc"); ?>
 <?php
 $ifdescrs = array('wan' => 'WAN', 'lan' => 'LAN');
-	
+if (ipv6enabled() && ($config['interfaces']['wan']['ipaddr6'] == "aiccu")) {
+	$ifdescrs['SixXS'] = 'SixXS';
+}
 for ($j = 1; isset($config['interfaces']['opt' . $j]); $j++) {
 	$ifdescrs['opt' . $j] = $config['interfaces']['opt' . $j]['descr'];
 }
@@ -62,8 +70,10 @@ foreach ($ifdescrs as $ifn => $ifd) {
 </select>
 </form>
 <div align="center">
-<embed src="graph.php?ifnum=<?=$ifnum;?>&ifname=<?=rawurlencode($ifdescrs[$curif]);?>" type="image/svg+xml"
-		width="550" height="275" pluginspage="http://www.adobe.com/svg/viewer/install/auto" />
+<object data="graph.php?ifnum=<?=$ifnum;?>&amp;ifname=<?=rawurlencode($ifdescrs[$curif]);?>" type="image/svg+xml" width="550" height="275">
+<param name="src" value="graph.php?ifnum=<?=$ifnum;?>&amp;ifname=<?=rawurlencode($ifdescrs[$curif]);?>" />
+Your browser does not support the type SVG! You need to either use Firefox or download the Adobe SVG plugin.
+</object>
 </div>
-<br><span class="red"><strong>Note:</strong></span> if you can't see the graph, you may have to install the <a href="http://www.adobe.com/svg/viewer/install/" target="_blank">Adobe SVG viewer</a>.
+<br><span class="red"><strong>Note:</strong></span> if you can't see the graph, you may need to download the most recent version of the <a href="http://www.mozilla.com/" target="_blank">Firefox</a> browser or install the <a href="http://www.adobe.com/svg/viewer/install/" target="_blank">Adobe SVG viewer</a>.
 <?php include("fend.inc"); ?>

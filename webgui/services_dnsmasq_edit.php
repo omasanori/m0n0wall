@@ -60,14 +60,14 @@ if ($_POST) {
 	
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 	
-	if (($_POST['host'] && !is_hostname($_POST['host']))) {
+	if (($_POST['host'] && (!is_hostname($_POST['host'])) && ($_POST['host'] != '*') )) {
 		$input_errors[] = "A valid host must be specified.";
 	}
 	if (($_POST['domain'] && !is_domain($_POST['domain']))) {
 		$input_errors[] = "A valid domain must be specified.";
 	}
-	if (($_POST['ip'] && !is_ipaddr($_POST['ip']))) {
-		$input_errors[] = "A valid IP address must be specified.";
+	if (($_POST['ip'] && !is_ipaddr4or6($_POST['ip']))) {
+			$input_errors[] = "A valid IP address must be specified.";
 	}
 
 	/* check for overlaps */
@@ -75,7 +75,7 @@ if ($_POST) {
 		if (isset($id) && ($a_hosts[$id]) && ($a_hosts[$id] === $hostent))
 			continue;
 
-		if (($hostent['host'] == $_POST['host']) && ($hostent['domain'] == $_POST['domain'])) {
+		if (($hostent['host'] == $_POST['host']) && ($hostent['domain'] == $_POST['domain']) && ((is_ipaddr($_POST['ip']) && is_ipaddr($hostent['ip'])) || (is_ipaddr6($_POST['ip']) && is_ipaddr6($hostent['ip'])) )) {
 			$input_errors[] = "This host/domain already exists.";
 			break;
 		}
@@ -105,13 +105,13 @@ if ($_POST) {
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="services_dnsmasq_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr>
                   <td width="22%" valign="top" class="vncell">Host</td>
                   <td width="78%" class="vtable"> 
                     <input name="host" type="text" class="formfld" id="host" size="40" value="<?=htmlspecialchars($pconfig['host']);?>">
                     <br> <span class="vexpl">Name of the host, without
-                    domain part<br>
+                    domain part, or * for wildcard.<br>
                     e.g. <em>myhost</em></span></td>
                 </tr>
 				<tr>

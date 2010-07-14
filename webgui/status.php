@@ -37,7 +37,7 @@ require("guiconfig.inc");
 
 function doCmdT($title, $command, $isstr) {
     echo "<p>\n";
-    echo "<a name=\"" . $title . "\">\n";
+    echo "<!-- TODO: Block elements like table are not allowed inside of an anchor --><a name=\"" . $title . "\">\n";
     echo "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">\n";
     echo "<tr><td class=\"listtopic\">" . $title . "</td></tr>\n";
     echo "<tr><td class=\"listlr\"><pre>";		/* no newline after pre */
@@ -121,15 +121,25 @@ function execCmds() {
 defCmdT("System uptime","uptime");
 defCmdT("Interfaces","/sbin/ifconfig -a");
 
-defCmdT("Routing tables","netstat -nr");
+defCmdT("Routing tables","/usr/bin/netstat -nr");
+
+defCmdT("Network buffers", "/usr/bin/netstat -m");
+defCmdT("Network protocol statistics", "/usr/bin/netstat -s");
+
+defCmdT("Kernel parameters", "/sbin/sysctl -a");
+defCmdT("Kernel modules loaded", "/sbin/kldstat");
 
 defCmdT("ipfw show", "/sbin/ipfw show");
 defCmdT("ipnat -lv", "/sbin/ipnat -lv");
 defCmdT("ipfstat -v", "/sbin/ipfstat -v");
 defCmdT("ipfstat -nio", "/sbin/ipfstat -nio");
+if (ipv6enabled())
+	defCmdT("ipfstat -6 -nio", "/sbin/ipfstat -6 -nio");
 
 defStrT("unparsed ipnat rules", filter_nat_rules_generate());
 defStrT("unparsed ipfilter rules", filter_rules_generate());
+if (ipv6enabled())
+	defStrT("unparsed IPv6 ipfilter rules", filter_rules_generate_ipv6());
 defStrT("unparsed ipfw rules", shaper_rules_generate());
 
 defCmdT("resolv.conf","cat /etc/resolv.conf");
@@ -137,12 +147,14 @@ defCmdT("resolv.conf","cat /etc/resolv.conf");
 defCmdT("Processes","ps xauww");
 defCmdT("dhcpd.conf","cat /var/etc/dhcpd.conf");
 defCmdT("ez-ipupdate.cache","cat /conf/ez-ipupdate.cache");
+if (ipv6enabled())
+	defCmdT("rtadvd.conf","cat /var/etc/rtadvd.conf");
 
 defCmdT("df","/bin/df");
 
 defCmdT("racoon.conf","cat /var/etc/racoon.conf");
-defCmdT("SPD","/usr/sbin/setkey -DP");
-defCmdT("SAD","/usr/sbin/setkey -D");
+defCmdT("SPD","/usr/local/sbin/setkey -DP");
+defCmdT("SAD","/usr/local/sbin/setkey -D");
 
 defCmdT("last 200 system log entries","/usr/sbin/clog /var/log/system.log 2>&1 | tail -n 200");
 defCmdT("last 50 filter log entries","/usr/sbin/clog /var/log/filter.log 2>&1 | tail -n 50");
