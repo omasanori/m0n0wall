@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -29,14 +29,25 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 
-$pgtitle = array("System", "Static routes", "Edit");
 require("guiconfig.inc");
 
-if (!is_array($config['staticroutes']['route']))
-	$config['staticroutes']['route'] = array();
+if ($ipv6routes = ($_GET['type'] == 'ipv6')) {
+	$configname = 'route6';
+	$typelink = '&type=ipv6';
+	$maxnetmask = 128;
+} else {
+	$configname = 'route';
+	$typelink = '';
+	$maxnetmask = 32;
+}
+$pgtitle = array("System", "Static routes", "Edit");	/* make group manager happy */
+$pgtitle = array("System", ipv6enabled() ? ($ipv6routes ? 'IPv6 Static routes' : 'IPv4 Static routes') : 'Static routes', "Edit");
+
+if (!is_array($config['staticroutes'][$configname]))
+	$config['staticroutes'][$configname] = array();
 
 staticroutes_sort();
-$a_routes = &$config['staticroutes']['route'];
+$a_routes = &$config['staticroutes'][$configname];
 
 $id = $_GET['id'];
 if (isset($_POST['id']))
@@ -61,18 +72,22 @@ if ($_POST) {
 	
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 	
-	if (($_POST['network'] && !is_ipaddr($_POST['network']))) {
+	if (($_POST['network'] && !($ipv6routes ? is_ipaddr6($_POST['network']) : is_ipaddr($_POST['network'])))) {
 		$input_errors[] = "A valid destination network must be specified.";
 	}
 	if (($_POST['network_subnet'] && !is_numeric($_POST['network_subnet']))) {
 		$input_errors[] = "A valid destination network bit count must be specified.";
 	}
-	if (($_POST['gateway'] && !is_ipaddr($_POST['gateway']))) {
+	if (($_POST['gateway'] && !($ipv6routes ? is_ipaddr6($_POST['gateway']) : is_ipaddr($_POST['gateway'])))) {
 		$input_errors[] = "A valid gateway IP address must be specified.";
 	}
 
 	/* check for overlaps */
-	$osn = gen_subnet($_POST['network'], $_POST['network_subnet']) . "/" . $_POST['network_subnet'];
+	if ($ipv6routes)
+	    $osn = gen_subnet6($_POST['network'], $_POST['network_subnet']) . "/" . $_POST['network_subnet'];
+	else
+	    $osn = gen_subnet($_POST['network'], $_POST['network_subnet']) . "/" . $_POST['network_subnet'];
+	
 	foreach ($a_routes as $route) {
 		if (isset($id) && ($a_routes[$id]) && ($a_routes[$id] === $route))
 			continue;
@@ -99,20 +114,22 @@ if ($_POST) {
 		
 		write_config();
 		
-		header("Location: system_routes.php");
+		header("Location: system_routes.php?{$typelink}");
 		exit;
 	}
 }
 ?>
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
-            <form action="system_routes_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+            <form action="system_routes_edit.php?<?=$typelink?>" method="post" name="iform" id="iform">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">Interface</td>
                   <td width="78%" class="vtable">
 					<select name="interface" class="formfld">
-                      <?php $interfaces = array('lan' => 'LAN', 'wan' => 'WAN', 'pptp' => 'PPTP');
+                      <?php $interfaces = array('lan' => 'LAN', 'wan' => 'WAN');
+					  if (!$ipv6routes)
+					      $interfaces['pptp'] = "PPTP";
 					  for ($i = 1; isset($config['interfaces']['opt' . $i]); $i++) {
 					  	$interfaces['opt' . $i] = $config['interfaces']['opt' . $i]['descr'];
 					  }
@@ -130,7 +147,7 @@ if ($_POST) {
                     <?=$mandfldhtml;?><input name="network" type="text" class="formfld" id="network" size="20" value="<?=htmlspecialchars($pconfig['network']);?>"> 
 				  / 
                     <select name="network_subnet" class="formfld" id="network_subnet">
-                      <?php for ($i = 32; $i >= 1; $i--): ?>
+                      <?php for ($i = $maxnetmask; $i >= 1; $i--): ?>
                       <option value="<?=$i;?>" <?php if ($i == $pconfig['network_subnet']) echo "selected"; ?>>
                       <?=$i;?>
                       </option>

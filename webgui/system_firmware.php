@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,10 @@ require("guiconfig.inc");
    returns any HTML message it gets from the server */
 function check_firmware_version() {
 	global $g;
+	
+	$specplatform = system_identify_specific_platform();
 	$post = "platform=" . rawurlencode($g['fullplatform']) . 
+		"&specplatform=" . rawurlencode($specplatform['name']) . 
 		"&version=" . rawurlencode(trim(file_get_contents("/etc/version")));
 		
 	$rfd = @fsockopen("m0n0.ch", 80, $errno, $errstr, 3);
@@ -165,7 +168,7 @@ print_info_box($sig_warning);
 			  to be uploaded.<br>Click &quot;Upgrade firmware&quot; 
               to start the upgrade process.</p>
             <form action="system_firmware.php" method="post" enctype="multipart/form-data">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 

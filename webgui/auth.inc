@@ -5,7 +5,7 @@
 
 	Copyright (C) 2006 Paul Taylor <paultaylor@winn-dixie.com>.
 	All rights reserved. 
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -79,7 +79,7 @@ if (!($_SERVER['REMOTE_USER'] === $config['system']['username'])) {
 		// they are attempting to go to.  Redirect them to an allowed page.
 
 		if (in_array("index.php",$allowed)) {
-			header("Location: /index.php"); 
+			echo "<html><head><title>401 Unauthorized</title><meta HTTP-EQUIV='REFRESH' content='2; url=/index.php'></head><body><h3>401 Unauthorized</h3>Authorization required.</body></html>";
 			exit;
 		}
 		else {

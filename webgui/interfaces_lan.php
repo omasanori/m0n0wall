@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -32,10 +32,26 @@
 $pgtitle = array("Interfaces", "LAN");
 require("guiconfig.inc");
 
+$wancfg = &$config['interfaces']['wan'];
 $lancfg = &$config['interfaces']['lan'];
 $optcfg = &$config['interfaces']['lan'];
 $pconfig['ipaddr'] = $config['interfaces']['lan']['ipaddr'];
 $pconfig['subnet'] = $config['interfaces']['lan']['subnet'];
+if (ipv6enabled()) {
+	$pconfig['ipv6ra'] = isset($config['interfaces']['lan']['ipv6ra']);
+	$pconfig['ipv6ram'] = isset($config['interfaces']['lan']['ipv6ram']);
+	$pconfig['ipv6rao'] = isset($config['interfaces']['lan']['ipv6rao']);
+	
+	if ($config['interfaces']['lan']['ipaddr6'] == "6to4") {
+		$pconfig['ipv6mode'] = "6to4";
+	} else if ($config['interfaces']['lan']['ipaddr6']) {
+		$pconfig['ipaddr6'] = $config['interfaces']['lan']['ipaddr6'];
+		$pconfig['subnet6'] = $config['interfaces']['lan']['subnet6'];
+		$pconfig['ipv6mode'] = "static";
+	} else {
+		$pconfig['ipv6mode'] = "disabled";
+	}
+}
 
 /* Wireless interface? */
 if (isset($optcfg['wireless'])) {
@@ -61,6 +77,12 @@ if ($_POST) {
 		$input_errors[] = "A valid subnet bit count must be specified.";
 	}
 	
+	if (ipv6enabled()) {
+		if ($_POST['ipv6mode'] == "static" && !is_ipaddr6($_POST['ipaddr6'])) {
+			$input_errors[] = "A valid IPv6 address must be specified.";
+		}
+	}
+	
 	/* Wireless interface? */
 	if (isset($optcfg['wireless'])) {
 		$wi_input_errors = wireless_config_post();
@@ -70,60 +92,108 @@ if ($_POST) {
 	}
 
 	if (!$input_errors) {
+		$v4changed = ($_POST['ipaddr'] != $config['interfaces']['lan']['ipaddr'] || $_POST['subnet'] != $config['interfaces']['lan']['subnet']);
 		$config['interfaces']['lan']['ipaddr'] = $_POST['ipaddr'];
 		$config['interfaces']['lan']['subnet'] = $_POST['subnet'];
 		
-		$dhcpd_was_enabled = 0;
-		if (isset($config['dhcpd']['enable'])) {
-			unset($config['dhcpd']['enable']);
-			$dhcpd_was_enabled = 1;
-		}
+		if (ipv6enabled()) {
+			$oldipaddr6 = $config['interfaces']['lan']['ipaddr6'];
+			$oldsubnet6 = $config['interfaces']['lan']['subnet6'];
+			$oldipv6ra = $config['interfaces']['lan']['ipv6ra'];
+			$oldipv6ram = $config['interfaces']['lan']['ipv6ram'];
+			$oldipv6rao = $config['interfaces']['lan']['ipv6rao'];
 			
+			if ($_POST['ipv6mode'] == "6to4") {
+				$config['interfaces']['lan']['ipaddr6'] = "6to4";
+				unset($config['interfaces']['lan']['subnet6']);
+				$config['interfaces']['lan']['ipv6ra'] = $_POST['ipv6ra'] ? true : false;
+				$config['interfaces']['lan']['ipv6ram'] = $_POST['ipv6ram'] ? true : false;
+				$config['interfaces']['lan']['ipv6rao'] = $_POST['ipv6rao'] ? true : false;
+			} else if ($_POST['ipv6mode'] == "static") {
+				$config['interfaces']['lan']['ipaddr6'] = $_POST['ipaddr6'];
+				$config['interfaces']['lan']['subnet6'] = $_POST['subnet6'];
+				$config['interfaces']['lan']['ipv6ra'] = $_POST['ipv6ra'] ? true : false;
+				$config['interfaces']['lan']['ipv6ram'] = $_POST['ipv6ram'] ? true : false;
+				$config['interfaces']['lan']['ipv6rao'] = $_POST['ipv6rao'] ? true : false;
+			} else {
+				unset($config['interfaces']['lan']['ipaddr6']);
+				unset($config['interfaces']['lan']['subnet6']);
+				unset($config['interfaces']['lan']['ipv6ra']);
+				unset($config['interfaces']['lan']['ipv6ram']);
+				unset($config['interfaces']['lan']['ipv6rao']);
+			}
+			
+			$v6changed = ($oldipaddr6 != $config['interfaces']['lan']['ipaddr6'] ||
+						  $oldsubnet6 != $config['interfaces']['lan']['subnet6'] ||
+						  isset($oldipv6ra) != isset($_POST['ipv6ra'])  ||
+						  isset($oldipv6ram) != isset($_POST['ipv6ram'])  ||
+						  isset($oldipv6rao) != isset($_POST['ipv6rao']));
+		}
+		
+		$dhcpd_disabled = false;
+		if ($v4changed && isset($config['dhcpd']['lan']['enable'])) {
+			unset($config['dhcpd']['lan']['enable']);
+			$dhcpd_disabled = true;
+		}
+		
 		write_config();
-		touch($d_sysrebootreqd_path);
+		
+		if ($v4changed)
+			touch($d_sysrebootreqd_path);
+		else if ($v6changed)
+			interfaces_lan_configure6();
+		
+		interfaces_secondaries_configure('lan');
 		
 		$savemsg = get_std_save_message(0);
 		
-		if ($dhcpd_was_enabled)
-			$savemsg .= "<br>Note that the DHCP server has been disabled.<br>Please review its configuration " .
-				"and enable it again prior to rebooting.";
+		if ($dhcpd_disabled)
+			$savemsg .= "<br><strong>Note that the DHCP server has been disabled.<br>Please review its configuration " .
+				"and enable it again prior to rebooting.</strong>";
 	}
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
-function gen_bits(ipaddr) {
-    if (ipaddr.search(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) != -1) {
-        var adr = ipaddr.split(/\./);
-        if (adr[0] > 255 || adr[1] > 255 || adr[2] > 255 || adr[3] > 255)
-            return "";
-        if (adr[0] == 0 && adr[1] == 0 && adr[2] == 0 && adr[3] == 0)
-            return "";
-		
-		if (adr[0] <= 127)
-			return "8";
-		else if (adr[0] <= 191)
-			return "16";
-		else
-			return "24";
-    }
-    else
-        return "";
-}
-function ipaddr_change() {
-	document.iform.subnet.value = gen_bits(document.iform.ipaddr.value);
+function enable_change(enable_over) {
+<?php if (ipv6enabled()): ?>
+	var en = (document.iform.ipv6mode.selectedIndex == 1 || enable_over);
+	document.iform.ipaddr6.disabled = !en;
+	document.iform.subnet6.disabled = !en;
+	document.iform.ipv6ra.disabled = !(document.iform.ipv6mode.selectedIndex != 0 || enable_over);
+	document.iform.ipv6ram.disabled = !(document.iform.ipv6mode.selectedIndex != 0 || enable_over);
+	document.iform.ipv6rao.disabled = !(document.iform.ipv6mode.selectedIndex != 0 || enable_over);
+<?php endif; ?>
+	
+	if (document.iform.mode) {
+		 wlan_enable_change(enable_over);
+	}
 }
 // -->
 </script>
+<?php if (isset($optcfg['wireless'])): ?>
+<script language="javascript" src="interfaces_wlan.js"></script>
+<?php endif; ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
+
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="tab pane">
+  <tr><td class="tabnavtbl">
+  <ul id="tabnav">
+    <li class="tabact">Primary configuration</li>
+	<li class="tabinact1"><a href="interfaces_secondaries.php?if=lan&amp;ifname=LAN">Secondary IPs</a></li>
+  </ul>
+  </td></tr>
+  <tr> 
+    <td class="tabcont">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="content pane">
             <form action="interfaces_lan.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">IP address</td>
                   <td width="78%" class="vtable"> 
-                    <?=$mandfldhtml;?><input name="ipaddr" type="text" class="formfld" id="ipaddr" size="20" value="<?=htmlspecialchars($pconfig['ipaddr']);?>" onchange="ipaddr_change()">
+                    <?=$mandfldhtml;?><input name="ipaddr" type="text" class="formfld" id="ipaddr" size="20" value="<?=htmlspecialchars($pconfig['ipaddr']);?>">
                     / 
                     <select name="subnet" class="formfld" id="subnet">
                       <?php for ($i = 31; $i > 0; $i--): ?>
@@ -133,6 +203,63 @@ function ipaddr_change() {
                       <?php endfor; ?>
                     </select></td>
                 </tr>
+                <?php if (ipv6enabled()): ?>
+                <tr> 
+                  <td valign="top" class="vncellreq">IPv6 mode</td>
+                  <td class="vtable"> 
+                    <select name="ipv6mode" class="formfld" id="ipv6mode" onchange="enable_change(false)">
+                      <?php $opts = array('disabled', 'static', '6to4');
+						foreach ($opts as $opt) {
+							echo "<option value=\"$opt\"";
+							if ($opt == $pconfig['ipv6mode']) echo "selected";
+							echo ">$opt</option>\n";
+						}
+						?>
+                    </select><br>
+					Choosing 6to4 on the LAN interface will make it use the first available /64 prefix within
+					the WAN interface&apos;s 6to4 prefix (which is determined by its current IPv4 address).</td>
+                </tr>
+                <tr> 
+                  <td valign="top" class="vncellreq">IPv6 address</td>
+                  <td class="vtable"> 
+                    <input name="ipaddr6" type="text" class="formfld" id="ipaddr6" size="30" value="<?=htmlspecialchars($pconfig['ipaddr6']);?>">
+                    / 
+                    <select name="subnet6" class="formfld" id="subnet6">
+                      <?php for ($i = 127; $i > 0; --$i): ?>
+                      <option value="<?=$i;?>" <?php
+                        if ($i == $pconfig['subnet6'] || (!isset($pconfig['subnet6']) && $i == 64)) echo "selected";
+                      ?>>
+                      <?=$i;?>
+                      </option>
+                      <?php endfor; ?>
+                    </select><br>
+					   Using a number less than /64 will cause RAs not to be announced as there aren't enough subnet bits. i.e. /48</td>
+                </tr>
+				<tr> 
+	                <td valign="top" class="vncellreq">Suggested IPv6 address</td>
+	                <td class="vtable"> 
+	                <?php if (!isset($wancfg['ipv6ra'])): ?>
+					Router advertisements are not enabled on WAN interface!
+	 				<?php else: ?>
+					<strong><?php echo suggest_ipv6_lan_addr() ?></strong><br>
+					This IPv6 Address is suggested from listening to prefix advertisements recieved on the WAN interface, and using the first address available in that prefix.
+					<?php endif; ?>
+					</td>
+	            </tr>
+                <tr> 
+                  <td valign="top" class="vncellreq">IPv6 RA</td>
+                  <td class="vtable"> 
+					<input type="checkbox" name="ipv6ra" id="ipv6ra" value="1" <?php if ($pconfig['ipv6ra']) echo "checked";?>> <strong>Send IPv6 router advertisements</strong><br>
+					If this option is checked, other hosts on this interface will be able to automatically configure
+					their IPv6 address based on prefix and gateway information that the firewall provides to them.
+					This option should normally be enabled.<br>
+					<input type="checkbox" name="ipv6ram" id="ipv6ram" value="1" <?php if ($pconfig['ipv6ram']) echo "checked";?>> <strong>Managed address configuration</strong><br>
+					If this option is checked, other hosts on this interface will use DHCPv6 for address allocation and non address allocation configuration.<br>
+					<input type="checkbox" name="ipv6rao" id="ipv6rao" value="1" <?php if ($pconfig['ipv6rao']) echo "checked";?>> <strong>Other stateful configuration</strong><br>
+					If this option is checked, other hosts on this interface will use DHCPv6 for non address allocation configuration, such as DNS.
+                  </td>
+                </tr>
+                <?php endif; ?>
 				<?php /* Wireless interface? */
 				if (isset($optcfg['wireless']))
 					wireless_config_print();
@@ -140,23 +267,33 @@ function ipaddr_change() {
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
                   <td width="78%"> 
-                    <input name="Submit" type="submit" class="formbtn" value="Save"> 
+                    <input name="Submit" type="submit" class="formbtn" value="Save" onclick="enable_change(true)"> 
                   </td>
                 </tr>
                 <tr> 
                   <td width="22%" valign="top">&nbsp;</td>
-                  <td width="78%"><span class="vexpl"><span class="red"><strong>Warning:<br>
-                    </strong></span>after you click &quot;Save&quot;, you must 
-                    reboot your firewall for changes to take effect. You may also 
-                    have to do one or more of the following steps before you can 
-                    access your firewall again: 
+                  <td width="78%">
+                    <span class="vexpl">
+                      <span class="red">
+                        <strong>Warning:</strong><br>
+                      </span>after you click &quot;Save&quot;, you must 
+                      reboot your firewall for changes to take effect. You may also 
+                      have to do one or more of the following steps before you can 
+                      access your firewall again:
+                    </span> 
                     <ul>
                       <li>change the IP address of your computer</li>
                       <li>renew its DHCP lease</li>
                       <li>access the webGUI with the new IP address</li>
                     </ul>
-                    </span></td>
+                  </td>
                 </tr>
               </table>
 </form>
+<script language="JavaScript">
+<!--
+enable_change(false);
+//-->
+</script>
+</table>
 <?php include("fend.inc"); ?>

@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -143,6 +143,12 @@ function conv_clog($logfile, $tail) {
 			$flent['interface'] = $iftable[$ipfa[$i]];
 		else if (strpos($ipfa[$i], "ng") !== false)
 			$flent['interface'] = "PPTP";
+		else if ($ipfa[$i] == "enc0")
+			$flent['interface'] = "IPsec";
+		else if ($ipfa[$i] == "gif0")
+			$flent['interface'] = "WAN";
+		else if ($ipfa[$i] == "stf0")
+			$flent['interface'] = "WAN";
 		else
 			$flent['interface'] = $ipfa[$i];
 		
@@ -201,7 +207,7 @@ function format_ipf_ip($ipfip,$uport) {
 ?>
 
 <?php include("fbegin.inc"); ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="tab pane">
   <tr><td class="tabnavtbl">
   <ul id="tabnav">
 <?php 
@@ -220,7 +226,7 @@ function format_ipf_ip($ipfip,$uport) {
 <?php if (!isset($config['syslog']['rawfilter'])):
 	$filterlog = conv_clog("/var/log/filter.log", $nentries);
 ?>
-		<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>
+		<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="content pane"><tr>
 		  <td colspan="6" class="listtopic"> 
 			    Last <?=$nentries;?> firewall log entries</td>
 			</tr>
@@ -247,7 +253,7 @@ function format_ipf_ip($ipfip,$uport) {
 					 else 
 					 	$img = "block.gif";
 			 	?>
-			  <a href="?act=<?=$filterent['act'];?><?=$actstring;?><img src="<?=$img;?>" width="11" height="11" align="absmiddle" border="0" title="click to select action"></a>
+			  <a href="?act=<?=$filterent['act'];?><?=$actstring;?><img src="<?=$img;?>" width="11" height="11" align="middle" border="0" title="click to select action" alt="click to select action"></a>
 			  <?php if ($filterent['count']) echo $filterent['count'];?></td>
 			  <td class="listr" nowrap><?=htmlspecialchars($filterent['time']);?></td>
 			  <td class="listr" nowrap>
@@ -260,12 +266,12 @@ function format_ipf_ip($ipfip,$uport) {
 			    <a href="?pr=<?=htmlspecialchars($filterent['proto']);?><?=$prstring;?><?=htmlspecialchars($filterent['proto']);?></a></td>
 			</tr><?php endforeach; ?>
                     </table>
-		<br><table width="100%" border="0" cellspacing="0" cellpadding="0">
+		<br><table width="100%" border="0" cellspacing="0" cellpadding="0" summary="info pane">
                       <tr> 
                         <td width="100%"><strong><span class="red">Note:</span></strong><br>
                           There are many possibilities to filter this log.
-                          Just click on the accept (<img src="pass.gif">) or
-			  deny symbol (<img src="block.gif">) to filter for
+                          Just click on the accept (<img src="pass.gif" alt="">) or
+			  deny symbol (<img src="block.gif" alt="">) to filter for
 			  accepted or denied IP packets. Do the same for the desired
 			  interface, source/destination port or protocol. To deselect
 			  a selected filter entry, click on the column description above.
