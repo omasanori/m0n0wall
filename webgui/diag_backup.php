@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -80,7 +80,7 @@ if ($_POST) {
             <form action="diag_backup.php" method="post" enctype="multipart/form-data">
             <?php if ($input_errors) print_input_errors($input_errors); ?>
             <?php if ($savemsg) print_info_box($savemsg); ?>
-              <table width="100%" border="0" cellspacing="0" cellpadding="6">
+              <table width="100%" border="0" cellspacing="0" cellpadding="6" summary="inner content pane">
                 <tr> 
                   <td colspan="2" class="listtopic">Backup configuration</td>
                 </tr>

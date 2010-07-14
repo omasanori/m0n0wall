@@ -66,8 +66,8 @@ if ($_POST) {
 	if (($_POST['domain'] && !is_domain($_POST['domain']))) {
 		$input_errors[] = "A valid domain must be specified.";
 	}
-	if (($_POST['ip'] && !is_ipaddr($_POST['ip']))) {
-		$input_errors[] = "A valid IP address must be specified.";
+	if (($_POST['ip'] && !is_ipaddr4or6($_POST['ip']))) {
+			$input_errors[] = "A valid IP address must be specified.";
 	}
 
 	/* check for overlaps */
@@ -105,7 +105,7 @@ if ($_POST) {
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="services_dnsmasq_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr>
                   <td width="22%" valign="top" class="vncell">Host</td>
                   <td width="78%" class="vtable"> 

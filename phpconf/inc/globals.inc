@@ -3,7 +3,7 @@
 	$Id$
     part of m0n0wall (http://m0n0.ch/wall)
     
-    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+    Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
     All rights reserved.
     
     Redistribution and use in source and binary forms, with or without
@@ -46,12 +46,10 @@ $g = array(
     "captiveportal_element_sizelimit" => 262144,
     "xml_rootobj" => "m0n0wall",
     "pppoe_interface" => "ng0",
-    "n_pptp_units" => 16,
-    "pptp_subnet" => 28,
     "debug" => false,
-    "latest_config" => "1.6",
-    "nopccard_platforms" => array("wrap", "net48xx"),
-    "wireless_regex" => "/^(wi|ath|an)/"
+    "latest_config" => "1.8",
+    "wireless_regex" => "/^(wi|ath|an|ral|ural)/",
+    "wireless_hostap_regex" => "/^(wi|ath|ral|ural)/"
 );
 
 ?>

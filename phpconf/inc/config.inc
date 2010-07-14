@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -50,9 +50,38 @@ if ($g['booting']) {
 	if (!file_exists("{$g['etc_path']}/fstab")) {
 	
 		if (strstr($g['platform'], "cdrom")) {
-			/* config is on floppy disk for CD-ROM version */
-			$cfgdevice = $cfgpartition = "fd0";
+			/* config is either on floppy disk or USB stick for CD-ROM version */
+			
+			/* try the USB stick at da0 first, and if this fails, use the floppy disk  */
+			$cfgdevice = "da0";
+			$cfgpartition = "da0s1";
 			$cfgfstype = "msdos";
+			
+			if (mwexec("/sbin/mount -t msdos -r /dev/da0s1 {$g['cf_path']}") == 0) {
+				/* USB stick is OK */
+				echo "Using USB memory stick for configuration storage.\n";
+				mwexec("/sbin/umount -f {$g['cf_path']}");
+			} else {
+				$cfgdevice = $cfgpartition = "fd0";
+				
+				if (mwexec("/sbin/mount -t msdos -r /dev/fd0 {$g['cf_path']}") != 0) {
+					echo <<<EOD
+
+
+*******************************************************************************
+* WARNING!                                                                    *
+* No FAT formatted USB memory stick or floppy disk could be found.            *
+* Your configuration changes will be lost on reboot.                          *
+*******************************************************************************
+
+
+EOD;
+					sleep(5);
+				} else {
+					echo "Using floppy disk for configuration storage.\n";
+					mwexec("/sbin/umount -f {$g['cf_path']}");
+				}
+			}
 		} else {
 			/* probe kernel known disks until we find one with config.xml */
 			$disks = explode(" ", trim(preg_replace("/kern.disks: /", "", exec("/sbin/sysctl kern.disks"))));
@@ -104,7 +133,6 @@ EOD;
 		$fd = fopen("{$g['etc_path']}/fstab", "w");
 		
 		$fstab = "/dev/{$cfgpartition} {$g['cf_path']} {$cfgfstype} ro 1 1\n";
-		$fstab .= "proc /proc procfs rw 0 0\n";
 		
 		fwrite($fd, $fstab);
 		fclose($fd);
@@ -131,13 +159,10 @@ if (!$noparseconfig) {
 		if (!file_exists("{$g['conf_path']}/config.xml")) {
 			if ($g['booting']) {
 				if (strstr($g['platform'], "cdrom")) {
-					/* try copying the default config. to the floppy */
+					/* try copying the default config. to the floppy/USB stick */
 					reset_factory_defaults();
 					
-					echo "No XML configuration file found - using factory defaults.\n"; 
-					echo "Make sure that the configuration floppy disk with the conf/config.xml\n";
-					echo "file is inserted. If it isn't, your configuration changes will be lost\n";
-					echo "on reboot.\n";
+					echo "No XML configuration file found - using factory defaults.\n";
 				} else {
 					echo "XML configuration file not found. m0n0wall cannot continue booting.\n"; 
 					mwexec("/sbin/halt");
@@ -204,8 +229,29 @@ function conf_mount_ro() {
 /* convert configuration, if necessary */
 function convert_config() {
 	global $config, $g;
+
+	/* Special solution for embedded: if interfaces in config use sisX, but
+	   we only have vrX, then change all (for migrating from WRAP to ALIX
+	   or Soekris 4xxx to 5xxx) */
+	if ($g['booting'] && ($g['platform'] == "embedded") &&
+		strpos($config['interfaces']['lan']['if'], "sis") === 0) {
 	
-	if ($config['version'] == $g['latest_config'])
+		$iflist = get_interface_list();
+		if (!isset($iflist['sis0']) && isset($iflist['vr0'])) {
+		
+			echo "Changing sisX interface names to vrX...";
+			$config['interfaces']['lan']['if']  = str_replace("sis", "vr", $config['interfaces']['lan']['if']);
+			$config['interfaces']['wan']['if']  = str_replace("sis", "vr", $config['interfaces']['wan']['if']);
+			
+			for ($i = 1; isset($config['interfaces']['opt' . $i]); $i++)
+				$config['interfaces']['opt' . $i]['if'] = str_replace("sis", "vr", $config['interfaces']['opt' . $i]['if']);
+			
+			write_config();
+			echo "done\n";
+		}
+	}
+	
+	if ($config['version'] == $g['latest_config'] && !isset($config['system']['timeservers-randomize']))
 		return;		/* already at latest version */
 	
 	if ($g['booting'])
@@ -551,6 +597,38 @@ function convert_config() {
 		$config['version'] = "1.6";
 	}
 	
+	/* convert 1.6 -> 1.7 */
+	if ($config['version'] == "1.6") {
+		
+		/* install a firewall rule to permit all IPsec traffic to reflect
+		   the default behavior in previous versions; the user can then remove
+		   that rule to filter IPsec VPN traffic if desired */
+		$config['filter']['rule'][] = array(
+			'type' => 'pass',
+			'descr' => 'Default IPsec VPN',
+			'interface' => 'ipsec',
+			'source' => array('any' => true),
+			'destination' => array('any' => true)
+		);
+		
+		$config['version'] = "1.7";
+	}
+	
+	/* convert 1.7 -> 1.8 */
+	if ($config['version'] == "1.7") {
+		/* do one-time conversion from pool.ntp.org to vendor zone */
+		if ($config['system']['timeservers'] == "pool.ntp.org")
+			$config['system']['timeservers-randomize'] = true;
+		
+		$config['version'] = "1.8";
+	}
+
+	/* choose a random NTP server (first time startup)? */
+	if (isset($config['system']['timeservers-randomize'])) {
+		$config['system']['timeservers'] = rand(0, 3) . ".m0n0wall.pool.ntp.org";
+		unset($config['system']['timeservers-randomize']);
+	}
+	
 	write_config();
 	
 	if ($g['booting'])
@@ -674,38 +752,16 @@ function config_validate($conffile) {
 	return true;
 }
 
-/* lock configuration file, decide that the lock file is stale after
-   10 seconds */
+/* lock configuration file */
 function config_lock() {
-	
 	global $g;
-	
-	$lockfile = "{$g['varrun_path']}/config.lock";
-	
-	$n = 0;
-	while ($n < 10) {
-		/* open the lock file in append mode to avoid race condition */
-		if ($fd = @fopen($lockfile, "x")) {
-			/* succeeded */
-			fclose($fd);
-			return;
-		} else {
-			/* file locked, wait and try again */
-			sleep(1);
-			$n++;
-		}
-	}
+	lock_file("{$g['varrun_path']}/config.lock");
 }
 
 /* unlock configuration file */
 function config_unlock() {
-	
 	global $g;
-	
-	$lockfile = "{$g['varrun_path']}/config.lock";
-	
-	if (file_exists($lockfile))
-		unlink($lockfile);
+	unlock_file("{$g['varrun_path']}/config.lock");
 }
 
 ?>

@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -66,16 +66,6 @@ if ($_POST) {
 		$input_errors[] = "A valid IP address must be specified.";
 	}
 
-	/* check for overlaps */
-	foreach ($a_domainOverrides as $doment) {
-		if (isset($id) && ($a_domainOverrides[$id]) && ($a_domainOverrides[$id] === $doment))
-			continue;
-
-		if (($doment['host'] == $_POST['host']) && ($doment['domain'] == $_POST['domain'])) {
-			$input_errors[] = "An override already exists for this domain.";
-			break;
-		}
-	}
 
 	if (!$input_errors) {
 		$doment = array();
@@ -100,7 +90,7 @@ if ($_POST) {
 <?php include("fbegin.inc"); ?>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="services_dnsmasq_domainoverride_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
 				<tr>
                   <td width="22%" valign="top" class="vncellreq">Domain</td>
                   <td width="78%" class="vtable"> 
