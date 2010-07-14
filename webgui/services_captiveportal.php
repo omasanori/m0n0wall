@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -123,6 +123,9 @@ if ($_POST) {
 	if ($_POST['idletimeout'] && (!is_numeric($_POST['idletimeout']) || ($_POST['idletimeout'] < 1))) {
 		$input_errors[] = "The idle timeout must be at least 1 minute.";
 	}
+	if ($_POST['peruserbw'] && (!isset($config['shaper']['enable']))) {
+		$input_errors[] = "The Traffic shaper has to be enabled first.";
+	}
 	if ($_POST['bwdefaultdn'] && (!is_numeric($_POST['bwdefaultdn']) || ($_POST['bwdefaultdn'] < 16))) {
 		$input_errors[] = "The per-user bandwidth download speed must be at least 16.";
 	}
@@ -206,7 +209,7 @@ if ($_POST) {
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 function enable_change(enable_change) {
 	var endis, radius_endis;
@@ -249,7 +252,7 @@ function enable_change(enable_change) {
 	
 	document.iform.radiusacctport.disabled = (radius_endis || !document.iform.radacct_enable.checked) && !enable_change;
 	
-	document.iform.radmac_secret.disabled = (radius_endis || !document.iform.radmac_enable.checked) && !enable_change;
+	document.iform.radmac_secret.disabled = (radius_endis || !document.iform.radmac_enable.checked) && !enable_change;
 	
 	var reauthenticate_dis = (radius_endis || !document.iform.reauthenticate.checked) && !enable_change;
 	document.iform.reauthenticateacct[0].disabled = reauthenticate_dis;
@@ -261,7 +264,7 @@ function enable_change(enable_change) {
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <?php if ($savemsg) print_info_box($savemsg); ?>
 <form action="services_captiveportal.php" method="post" enctype="multipart/form-data" name="iform" id="iform">
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="tab pane">
   <tr><td class="tabnavtbl">
   <ul id="tabnav">
 <?php 
@@ -269,6 +272,7 @@ function enable_change(enable_change) {
            		  'Pass-through MAC' => 'services_captiveportal_mac.php',
            		  'Allowed IP addresses' => 'services_captiveportal_ip.php',
            		  'Users' => 'services_captiveportal_users.php',
+           		  'Vouchers' => 'services_captiveportal_vouchers.php',
            		  'File Manager' => 'services_captiveportal_filemanager.php');
 	dynamic_tab_menu($tabs);
 ?> 
@@ -276,7 +280,7 @@ function enable_change(enable_change) {
   </td></tr>
   <tr>
   <td class="tabcont">
-  <table width="100%" border="0" cellpadding="6" cellspacing="0">
+  <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
 	<tr> 
 	  <td width="22%" valign="top" class="vtable">&nbsp;</td>
 	  <td width="78%" class="vtable">
@@ -303,7 +307,7 @@ function enable_change(enable_change) {
 	<tr>
 	  <td valign="top" class="vncell">Maximum concurrent connections</td>
 	  <td class="vtable">
-		<table cellpadding="0" cellspacing="0">
+		<table cellpadding="0" cellspacing="0" summary="max-conc-connection widget">
                  <tr>
            <td><input name="maxprocperip" type="text" class="formfld" id="maxprocperip" size="5" value="<?=htmlspecialchars($pconfig['maxprocperip']);?>"> per client IP address (0 = no limit)</td>
                  </tr>
@@ -364,9 +368,9 @@ to access after they've authenticated.</td>
       <td class="vtable">
         <input name="peruserbw" type="checkbox" class="formfld" id="peruserbw" value="yes" <?php if ($pconfig['peruserbw']) echo "checked"; ?>>
         <strong>Enable per-user bandwidth restriction</strong><br><br>
-        <table cellpadding="0" cellspacing="0">
+        <table cellpadding="0" cellspacing="0" summary="bandwidth-restriction widget">
         <tr>
-        <td>Default download</td>
+        <td>Default download&nbsp;&nbsp;</td>
         <td><input type="text" class="formfld" name="bwdefaultdn" id="bwdefaultdn" size="10" value="<?=htmlspecialchars($pconfig['bwdefaultdn']);?>"> Kbit/s</td>
         </tr>
         <tr>
@@ -379,24 +383,24 @@ to access after they've authenticated.</td>
 	<tr> 
 	  <td width="22%" valign="top" class="vncell">Authentication</td>
 	  <td width="78%" class="vtable"> 
-		<table cellpadding="0" cellspacing="0">
+		<table cellpadding="0" cellspacing="0" summary="authentication widget">
 		<tr>
-		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="none" onClick="enable_change(false)" <?php if($pconfig['auth_method']!="local" && $pconfig['auth_method']!="radius") echo "checked"; ?>>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method_none" value="none" onClick="enable_change(false)" <?php if($pconfig['auth_method']!="local" && $pconfig['auth_method']!="radius") echo "checked"; ?>>
   No authentication</td>  
 		  </tr>
 		<tr>
-		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="local" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="local") echo "checked"; ?>>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method_local" value="local" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="local") echo "checked"; ?>>
   Local <a href="services_captiveportal_users.php">user manager</a></td>  
 		  </tr>
 		<tr>
-		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method" value="radius" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius") echo "checked"; ?>>
+		  <td colspan="2"><input name="auth_method" type="radio" id="auth_method_radius" value="radius" onClick="enable_change(false)" <?php if($pconfig['auth_method']=="radius") echo "checked"; ?>>
   RADIUS authentication</td>  
 		  </tr><tr>
 		  <td>&nbsp;</td>
 		  <td>&nbsp;</td>
 		  </tr>
 		</table>
-		<table width="100%" border="0" cellpadding="6" cellspacing="0">
+		<table width="100%" border="0" cellpadding="6" cellspacing="0" summary="radius-server widget">
         	<tr> 
             	<td colspan="2" valign="top" class="optsect_t2">Primary RADIUS server</td>
 			</tr>
@@ -517,7 +521,7 @@ to access after they've authenticated.</td>
 				the Called-Station-Id to the client's MAC address. Default behaviour is Calling-Station-Id = client's MAC address and Called-Station-Id = m0n0wall's WAN MAC address.</td>
 			</tr>
             <tr>
-                <td class="vncell">MAC address format</td>
+                <td class="vncell" valign="top">MAC address format</td>
                 <td class="vtable">
                 <select name="radmac_format" id="radmac_format">
                 <option>default</option>
@@ -530,7 +534,7 @@ to access after they've authenticated.</td>
                         echo "<option value=\"$macformat\">$macformat</option>\n";
                 }
                 ?>
-                </select></br>
+                </select><br>
                 This option changes the MAC address format used in the whole RADIUS system. Change this if you also
                 need to change the username format for RADIUS MAC authentication.<br>
                 default: 00:11:22:33:44:55<br>
@@ -579,12 +583,13 @@ to access after they've authenticated.</td>
 		<?php endif; ?>
 		  Upload an HTML file for the portal page here (leave blank to keep the current one). Make sure to include a form (POST to &quot;$PORTAL_ACTION$&quot;)
 with a submit button (name=&quot;accept&quot;) and a hidden field with name=&quot;redirurl&quot; and value=&quot;$PORTAL_REDIRURL$&quot;.
-Include the &quot;auth_user&quot; and &quot;auth_pass&quot; input fields if authentication is enabled, otherwise it will always fail.
+Include the &quot;auth_user&quot; and &quot;auth_pass&quot; and/or &quot;auth_voucher&quot; input fields if authentication is enabled, otherwise it will always fail.
 Example code for the form:<br>
 		  <br>
 		  <tt>&lt;form method=&quot;post&quot; action=&quot;$PORTAL_ACTION$&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_user&quot; type=&quot;text&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_pass&quot; type=&quot;password&quot;&gt;<br>
+		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;auth_voucher&quot; type=&quot;text&quot;&gt;<br>
 		  &nbsp;&nbsp;&nbsp;&lt;input name=&quot;redirurl&quot; type=&quot;hidden&quot; value=&quot;$PORTAL_REDIRURL$&quot;&gt;<br>
 &nbsp;&nbsp;&nbsp;&lt;input name=&quot;accept&quot; type=&quot;submit&quot; value=&quot;Continue&quot;&gt;<br>
 		  &lt;/form&gt;</tt></td>
@@ -620,7 +625,7 @@ You may also include a new login form in the error page to allow the user to att
   </tr>
   </table>
 </form>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 enable_change(false);
 //-->

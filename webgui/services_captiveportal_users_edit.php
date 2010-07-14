@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	Copyright (C) 2005 Pascal Suter <d-monodev@psuter.ch>.
 	All rights reserved. 
@@ -135,7 +135,7 @@ if ($_POST) {
 </script>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
 <form action="services_captiveportal_users_edit.php" method="post" name="iform" id="iform">
-  <table width="100%" border="0" cellpadding="6" cellspacing="0">
+  <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
 	<tr> 
 	  <td width="22%" valign="top" class="vncellreq">Username</td>
 	  <td width="78%" class="vtable"> 

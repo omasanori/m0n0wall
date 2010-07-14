@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -78,6 +78,8 @@ function pconfig_to_address(&$adr, $padr, $pmask) {
 
 if (isset($id) && $a_ipsec[$id]) {
 	$pconfig['disabled'] = isset($a_ipsec[$id]['disabled']);
+	$pconfig['natt'] = isset($a_ipsec[$id]['natt']);
+	$pconfig['dpddelay'] = $a_ipsec[$id]['dpddelay'];
 	//$pconfig['auto'] = isset($a_ipsec[$id]['auto']);
 
 	if (!isset($a_ipsec[$id]['local-subnet']))
@@ -105,7 +107,10 @@ if (isset($id) && $a_ipsec[$id]) {
 	} else if (isset($a_ipsec[$id]['p1']['myident']['ufqdn'])) {
 		$pconfig['p1myidentt'] = 'user_fqdn';
 		$pconfig['p1myident'] = $a_ipsec[$id]['p1']['myident']['ufqdn'];
- 	}
+ 	} else if (isset($a_ipsec[$id]['p1']['myident']['asn1dn'])) {
+		$pconfig['p1myidentt'] = 'asn1dn';
+		$pconfig['p1myident'] = $a_ipsec[$id]['p1']['myident']['asn1dn'];
+	}
 	
 	$pconfig['p1ealgo'] = $a_ipsec[$id]['p1']['encryption-algorithm'];
 	$pconfig['p1halgo'] = $a_ipsec[$id]['p1']['hash-algorithm'];
@@ -127,7 +132,7 @@ if (isset($id) && $a_ipsec[$id]) {
 	/* defaults */
 	$pconfig['interface'] = "wan";
 	$pconfig['localnet'] = "lan";
-	$pconfig['p1mode'] = "aggressive";
+	$pconfig['p1mode'] = "main";
 	$pconfig['p1myidentt'] = "myaddress";
 	$pconfig['p1authentication_method'] = "pre_shared_key";
 	$pconfig['p1ealgo'] = "3des";
@@ -169,6 +174,10 @@ if ($_POST) {
 	
 	do_input_validation($_POST, $reqdfields, $reqdfieldsn, &$input_errors);
 	
+	if (($_POST['dpddelay'] && !is_numeric($_POST['dpddelay']))) {
+		$input_errors[] = "The DPD interval must be an integer.";
+	}
+	
 	if (!is_specialnet($_POST['localnettype'])) {
 		if (($_POST['localnet'] && !is_ipaddr($_POST['localnet']))) {
 			$input_errors[] = "A valid local network IP address must be specified.";
@@ -189,8 +198,8 @@ if ($_POST) {
 	if (($_POST['remotenet'] && !is_ipaddr($_POST['remotenet']))) {
 		$input_errors[] = "A valid remote network address must be specified.";
 	}
-	if (($_POST['remotegw'] && !is_ipaddr($_POST['remotegw']))) {
-		$input_errors[] = "A valid remote gateway address must be specified.";
+	if (($_POST['remotegw'] && !is_ipaddr($_POST['remotegw']) && !is_domain($_POST['remotegw']))) {
+		$input_errors[] = "A valid remote gateway address or host name must be specified.";
 	}
 	if ((($_POST['p1myidentt'] == "address") && !is_ipaddr($_POST['p1myident']))) {
 		$input_errors[] = "A valid IP address for 'My identifier' must be specified.";
@@ -210,7 +219,9 @@ if ($_POST) {
 	if (!$input_errors) {
 		$ipsecent['disabled'] = $_POST['disabled'] ? true : false;
 		//$ipsecent['auto'] = $_POST['auto'] ? true : false;
+		$ipsecent['dpddelay'] = $pconfig['dpddelay'];
 		$ipsecent['interface'] = $pconfig['interface'];
+		$ipsecent['natt'] = $_POST['natt'] ? true : false;
 		pconfig_to_address($ipsecent['local-subnet'], $_POST['localnet'], $_POST['localnetmask']);
 		$ipsecent['remote-subnet'] = $_POST['remotenet'] . "/" . $_POST['remotebits'];
 		$ipsecent['remote-gateway'] = $_POST['remotegw'];
@@ -229,6 +240,9 @@ if ($_POST) {
 				break;
 			case 'user_fqdn':
 				$ipsecent['p1']['myident']['ufqdn'] = $_POST['p1myident'];
+				break;
+			case 'asn1dn':
+				$ipsecent['p1']['myident']['asn1dn'] = $_POST['p1myident'];
 				break;
 		}
 		
@@ -262,7 +276,7 @@ if ($_POST) {
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 function typesel_change() {
 	switch (document.iform.localnettype.selectedIndex) {
@@ -303,7 +317,7 @@ function methodsel_change() {
 </script>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
             <form action="vpn_ipsec_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">Mode</td>
                   <td width="78%" class="vtable"> Tunnel</td>
@@ -338,10 +352,24 @@ function methodsel_change() {
                     </select> <br>
                     <span class="vexpl">Select the interface for the local endpoint of this tunnel.</span></td>
                 </tr>
+				<tr> 
+                  <td width="22%" valign="top" class="vncellreq">NAT-T</td>
+                  <td width="78%" class="vtable"> 
+                    <input name="natt" type="checkbox" id="natt" value="yes" <?php if ($pconfig['natt']) echo "checked"; ?>>
+                    <strong>Enable NAT Traversal (NAT-T)</strong><br>
+                    <span class="vexpl">Set this option to enable the use of NAT-T (i.e. the encapsulation of ESP in UDP packets) if needed,
+                    	which can help with clients that are behind restrictive firewalls.</span></td>
+                </tr>
+                <tr> 
+				  <td width="22%" valign="top" class="vncellreq">DPD interval</td>
+				  <td width="78%" class="vtable"> 
+					<input name="dpddelay" type="text" class="formfld" id="dpddelay" size="5" value="<?php echo htmlspecialchars($pconfig['dpddelay']); ?>"> seconds<br>
+					<span class="vexpl">Enter a value here to enable Dead Peer Detection (e.g. 60 seconds).</span></td>
+				</tr>
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">Local subnet</td>
                   <td width="78%" class="vtable"> 
-                    <table border="0" cellspacing="0" cellpadding="0">
+                    <table border="0" cellspacing="0" cellpadding="0" summary="network widget">
                       <tr> 
                         <td>Type:&nbsp;&nbsp;</td>
 						<td></td>
@@ -388,7 +416,7 @@ function methodsel_change() {
                   <td width="78%" class="vtable"> 
                     <?=$mandfldhtml;?><input name="remotegw" type="text" class="formfld" id="remotegw" size="20" value="<?=$pconfig['remotegw'];?>"> 
                     <br>
-                    Enter the public IP address of the remote gateway</td>
+                    Enter the public IP address or host name of the remote gateway</td>
                 </tr>
                 <tr> 
                   <td width="22%" valign="top" class="vncell">Description</td>
@@ -582,7 +610,7 @@ function methodsel_change() {
                 </tr>
               </table>
 </form>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 typesel_change();
 methodsel_change();
