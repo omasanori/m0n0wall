@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -70,13 +70,13 @@ function shaper_configure() {
 		unlink("{$g['tmp_path']}/ipfw.rules");
 		
 		/* make sure bridged packets are shaped as well */
-		mwexec("/sbin/sysctl net.link.ether.bridge_ipfw=1");
+		mwexec("/sbin/sysctl net.link.ether.bridge.ipfw=1");
 		
 		if ($g['booting'])
 			echo "done\n";
 		
 	} else {
-		mwexec("/sbin/sysctl net.link.ether.bridge_ipfw=0");
+		mwexec("/sbin/sysctl net.link.ether.bridge.ipfw=0");
 		if (!isset($config['captiveportal']['enable'])) {
 			/* unload ipfw and dummynet */
 			mwexec("/sbin/kldunload dummynet");
@@ -125,7 +125,7 @@ function shaper_rules_generate() {
 	if ($pptpdcfg['mode'] == "server") {
 		$pptpip = $pptpdcfg['localip'];
 		$pptpsa = $pptpdcfg['remoteip'];
-		$pptpsn = $g['pptp_subnet'];
+		$pptpsn = subnet_size_to_cidr($pptpdcfg['nunits'] ? $pptpdcfg['nunits'] : 16);
 	}
 	
 	$rulei = 50000;
@@ -153,7 +153,9 @@ function shaper_rules_generate() {
 				continue;
 			}
 				
-			$nif = $g['n_pptp_units'];
+			$nif = $pptpdcfg['nunits'];
+			if (!$nif)
+				$nif = 16;
 			$ispptp = true;
 		} else {
 			

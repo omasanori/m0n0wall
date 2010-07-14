@@ -39,6 +39,9 @@
 	require_once("config.inc");
 	require_once("functions.inc");
 	
+	/* check whether config reset is desired (via hardware button on WRAP/ALIX) */
+	system_check_reset_button();
+		
 	/* convert configuration, if necessary */
 	convert_config();
 	
@@ -63,15 +66,8 @@
 	/* generate resolv.conf */
 	system_resolvconf_generate();
 	
-	/* start pccardd */
-	if (!in_array($g['platform'], $g['nopccard_platforms']))
-		system_pccard_start();
-	
 	/* establish ipfilter ruleset */
 	filter_configure();
-	
-	/* set up device polling */
-	system_polling_configure();
 	
 	/* configure loopback interface */
 	interfaces_loopback_configure();
@@ -122,6 +118,9 @@
 	/* start DHCP service */
 	services_dhcpd_configure();
 	
+	/* start rtadvd */
+	interfaces_rtadvd_configure();
+	
 	/* start DHCP relay */
 	services_dhcrelay_configure();
 	
@@ -145,6 +144,9 @@
 	
 	/* start the captive portal */
 	captiveportal_configure();
+	
+	/* start Voucher support */
+	voucher_configure();
 	
 	/* set up termcap (for the firewall states page) */
 	system_set_termcap();

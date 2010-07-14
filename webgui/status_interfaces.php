@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -188,6 +188,10 @@ function get_interface_info($ifdescr) {
 					if (preg_match("/^0x/", $matches[1]))
 						$ifinfo['subnet'] = long2ip(hexdec($matches[1]));
 				}
+				if (preg_match("/inet6 ([0-9a-f:]+) prefixlen (\d+)/", $ici, $matches)) {
+					$ifinfo['ipaddr6'] = $matches[1];
+					$ifinfo['subnet6'] = $matches[2];
+				}
 			}
 			
 			if ($ifdescr == "wan") {
@@ -200,6 +204,43 @@ function get_interface_info($ifdescr) {
 						$ifinfo['gateway'] = $matches[1];
 					}
 				}
+				
+				if (ipv6enabled()) {
+					unset($netstatrninfo);
+					exec("/usr/bin/netstat -rnf inet6", $netstatrninfo);
+
+					foreach ($netstatrninfo as $nsr) {
+						if (preg_match("/^default\s*(\S+)/", $nsr, $matches)) {
+							$ifinfo['gateway6'] = $matches[1];
+						}
+					}
+					
+					/* 6to4 on WAN? need to run ifconfig on stf0 then */
+					if ($config['interfaces']['wan']['ipaddr6'] == "6to4") {
+						unset($ifconfiginfo);
+						exec("/sbin/ifconfig stf0", $ifconfiginfo);
+
+						foreach ($ifconfiginfo as $ici) {
+							if (preg_match("/inet6 ([0-9a-f:]+) prefixlen (\d+)/", $ici, $matches)) {
+								$ifinfo['ipaddr6'] = $matches[1];
+								$ifinfo['subnet6'] = $matches[2];
+							}
+						}
+					}
+
+					/* GRE tunnel on WAN? need to run ifconfig on gif0 then */
+					if ($config['interfaces']['wan']['tunnel6'] || $config['interfaces']['wan']['ipaddr6'] == "aiccu") {
+						unset($ifconfiginfo);
+						exec("/sbin/ifconfig gif0", $ifconfiginfo);
+
+						foreach ($ifconfiginfo as $ici) {
+							if (preg_match("/inet6 ([0-9a-f:]+) prefixlen (\d+)/", $ici, $matches)) {
+								$ifinfo['ipaddr6'] = $matches[1];
+								$ifinfo['subnet6'] = $matches[2];
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -210,7 +251,7 @@ function get_interface_info($ifdescr) {
 ?>
 <?php include("fbegin.inc"); ?>
 <form action="" method="post">
-            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" summary="content pane">
               <?php $i = 0; $ifdescrs = array('wan' => 'WAN', 'lan' => 'LAN');
 						
 					for ($j = 1; isset($config['interfaces']['opt' . $j]); $j++) {
@@ -294,9 +335,26 @@ function get_interface_info($ifdescr) {
                 <td width="78%" class="listr"> 
                   <?=htmlspecialchars($ifinfo['gateway']);?>
                 </td>
-              </tr><?php endif; if ($ifdescr == "wan" && file_exists("{$g['varetc_path']}/nameservers.conf")): ?>
+              </tr><?php endif; ?>
+			  <?php if ($ifinfo['ipaddr6']): ?>
+              <tr> 
+                <td width="22%" class="vncellt">IPv6 address</td>
+                <td width="78%" class="listr"> 
+                  <?=htmlspecialchars($ifinfo['ipaddr6'] . "/" . $ifinfo['subnet6']);?>
+                  &nbsp; </td>
+              </tr><?php endif; ?>
+			  <?php if ($ifinfo['gateway6']): ?>
+              <tr> 
+                <td width="22%" class="vncellt">IPv6 gateway</td>
+                <td width="78%" class="listr"> 
+                  <?=htmlspecialchars($ifinfo['gateway6']);?>
+                  &nbsp; </td>
+              </tr><?php endif; ?>
+			  <?php if ($ifdescr == "wan" && file_exists("{$g['varetc_path']}/nameservers.conf")): ?>
+              <tr>
                 <td width="22%" class="vncellt">ISP DNS servers</td>
                 <td width="78%" class="listr"><?php echo nl2br(file_get_contents("{$g['varetc_path']}/nameservers.conf")); ?></td>
+              </tr>
 			  <?php endif; endif; if ($ifinfo['media']): ?>
               <tr> 
                 <td width="22%" class="vncellt">Media</td>
@@ -339,10 +397,4 @@ function get_interface_info($ifdescr) {
               <?php $i++; endforeach; ?>
             </table>
 </form>
-<br>
-<strong class="red">Note:<br>
-</strong>Using dial-on-demand will bring the connection up again if any packet
-triggers it. To substantiate this point: disconnecting manually 
-will <strong>not</strong> prevent dial-on-demand from making connections
-to the outside! Don't use dial-on-demand if you want to make sure that the line is kept disconnected.
 <?php include("fend.inc"); ?>

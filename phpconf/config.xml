@@ -2,7 +2,7 @@
 <!-- m0n0wall default system configuration -->
 <!-- $Id$ -->
 <m0n0wall>
-	<version>1.6</version>
+	<version>1.8</version>
 	<lastchange></lastchange>
 	<system>
 		<hostname>m0n0wall</hostname>
@@ -13,7 +13,8 @@
 		<password>$1$2xGLA75j$W/jiJc00HYBZX7kFjxjQv0</password>
 		<timezone>Etc/UTC</timezone>
 		<time-update-interval>300</time-update-interval>
-		<timeservers>pool.ntp.org</timeservers>
+		<timeservers>0.m0n0wall.pool.ntp.org</timeservers>
+		<timeservers-randomize/>	<!-- first time usage only -->
 		<webgui>
 			<protocol>http</protocol>
 			<!--
@@ -47,6 +48,7 @@
 		<!-- <harddiskstandby></harddiskstandby> -->
 		<!-- <polling/> -->
 		<!-- <notes></notes> -->
+		<!-- <enableipv6/> -->
 	</system>
 	<interfaces>
 		<lan>
@@ -56,6 +58,9 @@
 			<media></media>
 			<mediaopt></mediaopt>
 			<!--
+			<ipaddr6>xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx|6to4</ipaddr6>
+			<subnet6></subnet6>
+			<ipv6ra />
 			<wireless>
 				*see below (opt[n])*
 			</wireless>
@@ -63,9 +68,8 @@
 		</lan>
 		<wan>
 			<if>sis1</if>
-			<mtu></mtu>
 			<ipaddr>dhcp</ipaddr>
-			<!-- *or* ipv4-address *or* 'pppoe' *or* 'pptp' *or* 'bigpond' -->
+			<!-- *or* ipv4-address *or* 'pppoe' *or* 'pptp' -->
 			<subnet></subnet>
 			<gateway></gateway>
 			<blockpriv/>
@@ -73,6 +77,15 @@
 			<media></media>
 			<mediaopt></mediaopt>
 			<!--
+			<ipaddr6>xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx|6to4|ppp|aiccu</ipaddr6>
+			<subnet6></subnet6>
+			<gateway6></gateway6>
+			<tunnel6>xxx.xxx.xxx.xxx</tunnel6>
+			<aiccu>
+				<username></username>
+				<password></password>
+				<tunnelid></tunnelid>
+			</aiccu>
 			<ispointtopoint/>
 			<wireless>
 				*see below (opt[n])*
@@ -86,6 +99,9 @@
 			<if></if>
 			<ipaddr></ipaddr>
 			<subnet></subnet>
+			<ipaddr6>xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx|6to4</ipaddr6>
+			<subnet6></subnet6>
+			<ipv6ra />
 			<media></media>
 			<mediaopt></mediaopt>
 			<bridge>lan|wan|opt[n]</bridge>
@@ -101,6 +117,19 @@
 						<value></value>
 					</key>
 				</wep>
+				<hidessid/>
+				<wpa>
+					<mode>none|psk|enterprise</mode>
+					<version>1|2|3</version>
+					<cipher>tkip|ccmp|both</cipher>
+					<psk></psk>
+					<radius>
+						<server></server>
+						<authport></authport>
+						<acctport></acctport>
+						<secret></secret>
+					</radius>
+				</wpa>
 			</wireless>
 		</opt[n]>
 		-->
@@ -122,6 +151,12 @@
 			<gateway>xxx.xxx.xxx.xxx</gateway>
 			<descr></descr>
 		</route>
+		<route6>
+			<interface>lan|opt[n]</interface>
+			<network>xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/xx</network>
+			<gateway>xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx</gateway>
+			<descr></descr>
+		</route6>
 		-->
 	</staticroutes>
 	<pppoe>
@@ -129,8 +164,7 @@
 		<password></password>
 		<provider></provider>
 		<!--
-		<ondemand/>
-		<timeout></timeout>
+		<mtu></mtu>
 		<dnsnosec/>
 		-->
 	</pppoe>
@@ -141,19 +175,10 @@
 		<subnet></subnet>
 		<remote></remote>
 		<!--
-		<ondemand/>
 		<local-ip></local-ip>
 		<remote-ip></remote-ip>
-		<timeout></timeout>
 		-->
 	</pptp>
-	<bigpond>
-		<username></username>
-		<password></password>
-		<authserver></authserver>
-		<authdomain></authdomain>
-		<minheartbeatinterval></minheartbeatinterval>
-	</bigpond>
 	<dyndns>
 		<!-- <enable/> -->
 		<type>dyndns</type>
@@ -206,6 +231,7 @@
 	</dhcpd>
 	<pptpd>
 		<mode><!-- off *or* server *or* redir --></mode>
+		<nunits>16</nunits>
 		<redir></redir>
 		<localip></localip>
 		<remoteip></remoteip>
@@ -216,7 +242,15 @@
 			<name></name>
 			<password></password>
 		</user>
+		<radius>
+			<enable/>
+			<accounting/>
+			<radiusip/>
+			<server></server>
+			<secret></secret>
+		</radius>
 		-->
+		<!-- <nofwrulegen/> -->
 	</pptpd>
 	<dnsmasq>
 		<enable/>
@@ -242,10 +276,6 @@
 		<!-- <bindlan/> -->
 	</snmpd>
 	<diag>
-		<ipv6nat>
-			<!-- <enable/> -->
-			<ipaddr></ipaddr>
-		</ipv6nat>
 		<!-- <ipfstatentries></ipfstatentries> -->
 	</diag>
 	<bridge>
@@ -356,6 +386,10 @@
 			<descr></descr>
 		</servernat>
 		-->
+		<!--
+		<portrange-low></portrange-low>
+		<portrange-high></portrange-high>
+		-->
 	</nat>
 	<filter>
 		<!-- <tcpidletimeout></tcpidletimeout> -->
@@ -372,12 +406,23 @@
 				<any/>
 			</destination>
 		</rule>
-		<!-- rule syntax:
 		<rule>
+			<type>pass</type>
+			<descr>Default IPsec VPN</descr>
+			<interface>ipsec</interface>
+			<source>
+				<any/>
+			</source>
+			<destination>
+				<any/>
+			</destination>
+		</rule>
+		<!-- rule syntax:
+		<rule/rule6>
 			<disabled/>
 			<type>pass|block|reject</type>
 			<descr>...</descr>
-			<interface>lan|opt[n]|wan|pptp</interface>
+			<interface>lan|opt[n]|wan|pptp|ipsec</interface>
 			<protocol>tcp|udp|tcp/udp|...</protocol>
 			<icmptype></icmptype>
 			<source>
@@ -396,7 +441,7 @@
 			</destination>
 			<frags/>
 			<log/>
-		</rule>
+		</rule/rule6>
 		-->
 	</filter>
 	<shaper>
@@ -449,11 +494,13 @@
 	<ipsec>
 		<!-- <enable/> -->
 		<!-- <preferoldsa/> -->
+		<!-- <dns-interval></dns-interval> -->
 		<!-- syntax:
 		<tunnel>
 			<disabled/>
 			<auto/>
 			<descr></descr>
+			<dpddelay></dpddelay>
 			<interface>lan|wan|opt[n]</interface>
 			<local-subnet>
 				<address>xxx.xxx.xxx.xxx(/xx)</address>
@@ -487,6 +534,7 @@
 		</tunnel>
 		<mobileclients>
 			<enable/>
+			<dpddelay></dpddelay>
 			<p1>
 				<mode></mode>
 				<myident>

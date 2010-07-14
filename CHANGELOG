@@ -3,6 +3,393 @@ $Id$
 *** Note: Please add new entries to the top of this file. ***
 -------------------------------------------------------------------------------
 
+- make PPPoE MTU on WAN configurable
+
+- add patch to enable custom next-server and filename options for
+  static mappings in DHCP server (by Stephen Erisman)
+
+- fixed IPv6-ICMP firewall rule type matching
+
+- added support for AICCU (a tool for dynamically configuring IPv6 tunnels
+  from SixXS, allowing users with dynamic WAN IP addresses to use tunnels)
+  Note that only heartbeat tunnels are supported at this time (no AYIYA).
+
+- updated kernel to 6.3-RELEASE-p5 (ICMPv6 denial of service fix; IPv6
+  NDP routing vulnerability fix)
+
+1.3b14
+------
+
+- updated PHP to 4.4.9
+
+- modify boot loader for embedded images to use the serial speed set by
+  the BIOS (and no longer a fixed speed as soon as the kernel boots),
+  as in 1.2x releases
+
+- add VMware .vmx config file (for "official" VM release)
+
+- import "install on Hard Drive" feature (console menu) from AskoziaPBX; this
+  allows one to install an image on HD/CF by first booting with the cdrom
+  version of m0n0wall
+
+- *** consolidate net45xx, net48xx and wrap images into a single "embedded"
+  image. Users should download the "embedded" image and rename it to reflect
+  their current platform so that it can be used to upgrade previous versions
+
+- fix a long standing bug with regenerating firewall rules (including
+  automatically generated ones) that reference the WAN interface when the
+  WAN IP address changes
+
+- change ZoneEdit update server name to dynamic.zoneedit.com
+
+- remove SIP proxy (not much feedback from users; used a considerable amount of
+  space)
+
+- show driver names for network interfaces (obtained from dmesg) when
+  assigning interfaces to make it a bit easier for the user to choose
+
+- import ipnat source port randomization patch from FreeBSD CVS
+  (see http://docs.freebsd.org/cgi/getmsg.cgi?fetch=427148+0+current/cvs-src)
+  (important when running DNS servers behind m0n0wall with NAT turned on);
+  add new option to System: Advanced page to control the port range used
+  for random source port allocation during outbound NAT (default is
+  1024 - 64535; portrange sysctls have been adjusted accordingly);
+  reorganize System: Advanced page slightly at the same time
+
+- update Dnsmasq to 2.45
+
+- add kernel patch to fix ATA on some Cyrix/Geode based boards
+  (see http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/dev/pci/pci.c#rev1.343)
+  (suggested by Konrad Jopek)
+
+- fix "RSA Cert Subject" choice for My Identifier on IPsec VPN Mobile Client
+  setup page (reported by rdnzl)
+
+- don't allow the interface's network or broadcast address to be used in
+  the DHCP client range, and also make sure that the interface's own
+  address does not fall within the range
+
+- make behavior of Interfaces: LAN page more intelligent (only disable
+  DHCP server if the IPv4 address has actually changed; do not require
+  reboot if only IPv6 address changed)
+
+- fix broken time zones (hard links in zoneinfo.tgz)
+
+
+1.3b13
+------
+
+- add support for IPv6-in-IPv4 tunnels on WAN (for use with tunnel brokers)
+
+- for wrap image, show whether we're running on a WRAP or ALIX board on
+  the system status page
+
+- updated Dnsmasq to 2.43
+
+- fix issue where firewall rules on PPTP VPN (and access to m0n0wall's own
+  services, like ping or DNS, from a PPTP VPN client) wouldn't work if incoming
+  GRE packets were matched by a traffic shaper rule on WAN
+
+- add support for IPv6 over PPPoE/PPTP (WAN)
+
+- fix "Register DHCP leases in DNS forwarder" option
+
+
+1.3b12
+------
+
+- add initial IPv6 support (based on code contributed by Michael Hanselmann
+  in 2005)
+
+- removed IPv6 tunneling option
+
+- automatically generate self-signed SSL certificate when switching from
+  HTTP to HTTPS (CN = current hostname); also add a button to generate a
+  self-signed certificate on demand on the System: Advanced page
+
+- make captive portal "disable concurrent logins" function compare usernames
+  in a case-insensitive manner
+
+- fix polling setting on optional interfaces
+
+- add ipnat fix (from ipfilter mailing list) to prevent a (rare) case of
+  kernel panic when ipnat sees a fragment of a TCP packet, and that
+  fragment is not the first one
+
+- remove PPPoE/PPTP dial-on-demand feature. Still doesn't work properly,
+  nobody has enough interest in it to fix it, and most people probably
+  don't need it anyway
+
+- remove bpalogin - looks like it's dead
+
+- updated Dnsmasq to 2.42
+
+- don't run captive portal reauthentication (if enabled) for MAC
+  pass-through clients (patch by Peter Allgeyer)
+
+
+1.3b11
+------
+
+- fix IPsec "prefer old SA" option, specifically when it is disabled (in
+  which case old SAs were preferred anyway in 1.3b10 because
+  net.key.preferred_oldsa was set to -30, but that doesn't work with the
+  current implementation and is a relict from FreeBSD 4.11/m0n0wall 1.23,
+  where we used a more elaborate custom kernel patch for this that also
+  allowed a number of seconds to be specified)
+  
+- add DPD (Dead Peer Detection) option to IPsec tunnels (default off as before)
+
+- added asn1dn option to IPsec identifier types to be compatible with what
+  Openswan expects when using certs instead of PSKs
+  (contributed by Wes Morgan)
+
+- fix SVG SVG traffic/CPU graphs under IE7 (by Daniel S. Haischt)
+
+
+1.3b10
+------
+
+- allow fragmented ESP and NAT-T encapsulated IPsec packets when using the
+  integrated IPsec support (should solve MTU issues)
+
+- added patch to make mini_httpd accept intermediate SSL CA certificates
+  (contributed by Bernie O'Connor)
+
+- use NTP vendor pool zone for m0n0wall instead of pool.ntp.org (this will
+  also be automatically replaced in existing installations on the first
+  boot)
+
+- fix MSNTP to properly handle server hostnames that start with a digit
+
+- updated base system to FreeBSD 6.3-RELEASE-p1
+
+- copied dhclient-script from m0n0wall 1.233 (in an attempt at solving the
+  sporadic DHCP renewal problems reported by some users)
+
+- fix MPD WAN PPPoE/PPTP auto-reconnect issue
+
+- webGUI HTML tidyness fixes by Daniel S. Haischt
+
+- put IPSTEALTH in kernel config so that it can be enabled via sysctl
+  if needed
+
+- updated ipsec-tools to 0.7
+
+
+1.3b9
+-----
+
+- added patch for trap 12 kernel panics on Nokia IP110/IP120/IP130
+  (thanks to Bruce Walter)
+
+- increased MFS root size by 1 MB to avoid problems with large configs
+
+- fixed bridging with interfaces that support hardware TX checksumming
+  (by turning it off)
+
+
+1.3b8
+-----
+
+- updated MPD to 4.4 (also fixed AT&T/Bellsouth secondary DNS reject
+problem) - removes RADIUS IP option
+
+- updated PHP to 4.4.8
+
+- exposed DHCP next-server and filename options via webGUI
+
+
+1.3b7
+-----
+
+- fixed kernel panic when using IPsec and the traffic shaper at the same
+  time (see FreeBSD PR kern/119036)
+
+- fixed SIP proxy when using PPPoE/PPTP mode on WAN interface
+
+
+1.3b6
+-----
+
+- fixed filtering bridge when used in conjunction with traffic shaper
+
+- enabled larger client subnet sizes (= more concurrent connections) for
+  PPTP VPN server (up to 256)
+
+- updated timezone data
+
+- captive portal reliability fixes (locking, treatment of sessions that
+  have not passed any traffic by the time they end, skipping sessions
+  sometimes during periodic pruning runs) - thanks to Janåke Rönnblom
+
+- added support for IPsec tunnels with (possibly dynamic) remote host names
+  (instead of fixed IP addresses); the host name is polled at regular intervals
+  (default 60 seconds), and if the IP address that it maps to changes, IPsec
+  is reconfigured. Note that this will also cause other (non-dynamic) tunnels
+  to be briefly interrupted.
+
+- added firewall support for decapsulated IPsec packets (new pseudo-interface
+  "IPsec" in firewall rule editor); this is on by default, but the default
+  configuration contains a "pass all" rule on the new IPsec pseudo-
+  interface (and this is also added automatically for existing configurations),
+  which can then be deleted to actually filter IPsec VPN traffic
+
+- stop discriminating against nge(4) (National Semiconductor PCI Gigabit Ethernet) adapters
+
+- fix DHCP release button on interface status page
+
+- updated FreeBSD to 6.2-RELEASE-p9
+
+- updated ipfilter to 4.1.28
+
+
+1.3b5
+-----
+
+- automatically change sisX interface names to vrX when running on ALIX
+
+- add vr(4) driver VLAN fix (for ALIX etc.)
+
+- added reset button driver for ALIX
+
+- change logo/license/footer to include registered trademark sign
+
+- upgraded ipfilter to 4.1.23 (from FreeBSD CVS); note: kernel patch
+  in build/patches/kernel/kernel-6.patch still reflects ipfilter
+  changes to stock 4.1.13
+
+- fix FIN handling in ipnat FTP proxy
+
+- siproxd added. Offers transparent SIP proxy/masquerading and simple
+  registrar service. See http://siproxd.sourceforge.net/
+
+1.3b4
+-----
+
+- console speed for WRAP image is now 38400 as this has always been the
+  default for new WRAP (and ALIX) boards anyway
+
+- modified WRAP image kernel to also work with ALIX.2 (added vr device and
+  USB EHCI + CPU soft reset patches to wrap kernel; tested on prototype board)
+  -> for ALIX, interfaces need to be re-assigned (vr* instead of sis*)
+
+- patched hostapd to support writing PID file; start hostapd with -B
+  flag (fixes problem with wireless interfaces that have WPA enabled
+  not being initialized properly on boot)
+
+- recompiled MPD with current MSS/dial-on-demand patches (also fixes idle timeout bug)
+
+- removed code that auto-selects subnet mask on LAN and OPT setup
+  pages (it's confusing and doesn't necessarily get it right)
+
+- recompiled PHP, this time with radius extension
+
+
+1.3b3
+-----
+
+- wireless LAN improvements
+    - hide SSID option
+    - WPA-PSK and WPA-Enterprise (in hostap mode)
+
+- allow dashes in alias names
+
+- added hidden option to disable auto-generation of PPTP rules on WAN
+  (<nofwrulegen/> in <pptpd> section)
+
+- fix ATA HD spin down feature (using ataidle - needs testing)
+
+- ipfilter TCP window scaling bug fix
+  (see http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/contrib/ipfilter/netinet/ip_state.c#rev1.38)
+
+- sync in changes from 1.23 branch
+
+- increased mfsroot size to 14 MB (from 13 MB)
+
+- updated base system to FreeBSD 6.2-RELEASE-p6
+
+- updated PHP to 4.4.7
+
+- updated ipsec-tools to 0.6.7
+
+- updated isc-dhcpd to 3.0.5
+
+- updated Dnsmasq to 2.39
+
+- add kernel patch for fragment bug in ipfilter (contributed by Frank Edwards)
+
+- voucher login error messages for invalid and expired vouchers configurable
+  via GUI Captive Portal -> Voucher (mwiget)
+
+- added voucher support to captive portal (mwiget)
+
+- modified kernel patch to handle ipnat+dummynet in ip_input -> should fix problems
+  with captive portal not reporting downloaded data per user properly when the
+  traffic shaper is on, and also makes per-user bandwidth limits work again
+
+- add ural(4) to list of recognized wireless NICs
+
+- removed "-P" option from boot.config again (doesn't work properly with USB keyboards)
+
+- add kbdmux to kernel config of generic-pc(-cdrom) -> should fix problems with USB keyboards (hopefully)
+
+- use setkey from ipsec-tools now that we use NAT-T (mkasper)
+
+
+1.3b2
+-----
+
+- enabled AES for IPsec phase 1 (mkasper)
+
+- bumped MFS size in rc.firmware to 10 MB (mkasper)
+
+- set "-P" option in boot.config for generic-pc and generic-pc-cdrom to automatically
+  probe for a keyboard and use the serial port if no keyboard is found (mkasper)
+
+- compiled SNMP agent with support for memory usage information MIB (mkasper)
+
+- enabled NAT-T support for IPsec tunnels -> new option on IPsec webGUI pages (mkasper)
+
+- back-ported MSS clamping fix from MPD 4.0b5 to MPD 3.18 (fixes MTU problems with
+  PPPoE client) (mkasper)
+
+- enabled hostap for wireless cards supported by the ral(4) driver (mkasper)
+
+- forced PIO mode for ATA driver to work around problems with quirky hardware
+  (IDE controllers, CF cards) (mkasper)
+
+- changes in Captive Portal (jdegraeve):
+ - Always sent the session-time instead of only sending it within a stop. This
+   will cause most prepaid systems to work again.
+
+
+1.3b1
+-----
+
+- changed base system to FreeBSD 6.2-RC1 (final 1.3 version will be based on FreeBSD 6.2-RELEASE)
+
+- WARNING: the generic-pc image no longer fits on 8 MB CF cards! (>= 10 MB required)
+
+- for generic-pc-cdrom, the configuration may now also be stored on an USB memory stick
+  (instead of a floppy disk). m0n0wall will automatically probe for an USB stick with
+  an FAT file system first, and if this fails, fall back to the floppy drive
+
+- added support for new wireless features in FreeBSD 6
+	- Atheros cards are finally supported!
+	- channel selection on interface setup page now reflects actual capabilities of card
+	- wireless status page shows scanned APs in client mode and associated stations in hostap mode
+	- WPA support is expected in the next release
+
+- removed MTU option from Interfaces: WAN page. This used to control TCP MSS 
+  adjustment, but since the non-NAT-dependent MSS fixup patch kludged into ipnat 
+  has not been ported to ipfilter 4 (and is an ugly hack at best anyway), MSS 
+  fixup is now automatically applied for PPPoE connections (where it is actually 
+  needed) using MPD's integrated feature and shouldn't be necessary in other cases
+
+- a rather intrusive kernel patch was required to make concurrent traffic shaping + NAT on the
+  WAN interface possible; if you rely on this feature, please test it well and report any problems
+
 1.23b2
 ------
 

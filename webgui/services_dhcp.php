@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,8 @@ $pconfig['maxtime'] = $config['dhcpd'][$if]['maxleasetime'];
 list($pconfig['wins1'],$pconfig['wins2']) = $config['dhcpd'][$if]['winsserver'];
 $pconfig['enable'] = isset($config['dhcpd'][$if]['enable']);
 $pconfig['denyunknown'] = isset($config['dhcpd'][$if]['denyunknown']);
+$pconfig['nextserver'] = $config['dhcpd'][$if]['next-server'];
+$pconfig['filename'] = $config['dhcpd'][$if]['filename'];
 
 $ifcfg = $config['interfaces'][$if];
 
@@ -92,19 +94,12 @@ if ($_POST) {
 		if ($_POST['maxtime'] && (!is_numericint($_POST['maxtime']) || ($_POST['maxtime'] <= $_POST['deftime']))) {
 			$input_errors[] = "The maximum lease time must be higher than the default lease time.";
 		}
+		if ($_POST['nextserver'] && !is_ipaddr($_POST['nextserver'])) {
+			$input_errors[] = "A valid next server IP address must be specified.";
+		}
 		
-		if (!$input_errors) {
-			/* make sure the range lies within the current subnet */
-			$subnet_start = (ip2long($ifcfg['ipaddr']) & gen_subnet_mask_long($ifcfg['subnet']));
-			$subnet_end = (ip2long($ifcfg['ipaddr']) | (~gen_subnet_mask_long($ifcfg['subnet'])));
-			
-			if ((ip2long($_POST['range_from']) < $subnet_start) || (ip2long($_POST['range_from']) > $subnet_end) ||
-			    (ip2long($_POST['range_to']) < $subnet_start) || (ip2long($_POST['range_to']) > $subnet_end)) {
-				$input_errors[] = "The specified range lies outside of the current subnet.";	
-			}
-			
-			if (ip2long($_POST['range_from']) > ip2long($_POST['range_to']))
-				$input_errors[] = "The range is invalid (first element higher than second element).";
+		if (!$input_errors) {				
+			$input_errors = array_merge($input_errors, check_dhcp_range($ifcfg['ipaddr'], $ifcfg['subnet'], $_POST['range_from'], $_POST['range_to']));
 			
 			/* make sure that the DHCP Relay isn't enabled on this interface */
 			if (isset($config['dhcrelay'][$if]['enable']))
@@ -119,6 +114,8 @@ if ($_POST) {
 		$config['dhcpd'][$if]['maxleasetime'] = $_POST['maxtime'];
 		$config['dhcpd'][$if]['enable'] = $_POST['enable'] ? true : false;
 		$config['dhcpd'][$if]['denyunknown'] = $_POST['denyunknown'] ? true : false;
+		$config['dhcpd'][$if]['next-server'] = $_POST['nextserver'];
+		$config['dhcpd'][$if]['filename'] = $_POST['filename'];
 		
 		unset($config['dhcpd'][$if]['winsserver']);
 		if ($_POST['wins1'])
@@ -154,7 +151,7 @@ if ($_GET['act'] == "del") {
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 function enable_change(enable_over) {
 	var endis;
@@ -166,6 +163,8 @@ function enable_change(enable_over) {
 	document.iform.wins2.disabled = endis;
 	document.iform.deftime.disabled = endis;
 	document.iform.maxtime.disabled = endis;
+	document.iform.nextserver.disabled = endis;
+	document.iform.filename.disabled = endis;
 }
 //-->
 </script>
@@ -176,7 +175,7 @@ function enable_change(enable_over) {
 <?php print_info_box_np("The static mapping configuration has been changed.<br>You must apply the changes in order for them to take effect.");?><br>
 <input name="apply" type="submit" class="formbtn" id="apply" value="Apply changes"></p>
 <?php endif; ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="tab pane">
   <tr><td class="tabnavtbl">
   <ul id="tabnav">
 <?php $i = 0; foreach ($iflist as $ifent => $ifname):
@@ -190,7 +189,7 @@ function enable_change(enable_over) {
   </td></tr>
   <tr> 
     <td class="tabcont">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                       <tr> 
                         <td width="22%" valign="top" class="vtable">&nbsp;</td>
                         <td width="78%" class="vtable">
@@ -223,9 +222,9 @@ function enable_change(enable_over) {
                         <td width="22%" valign="top" class="vncellreq">Available 
                           range</td>
                         <td width="78%" class="vtable"> 
-                          <?=long2ip(ip2long($ifcfg['ipaddr']) & gen_subnet_mask_long($ifcfg['subnet']));?>
+                          <?=long2ip((ip2long($ifcfg['ipaddr']) & gen_subnet_mask_long($ifcfg['subnet'])) + 1);?>
                           - 
-                          <?=long2ip(ip2long($ifcfg['ipaddr']) | (~gen_subnet_mask_long($ifcfg['subnet']))); ?>
+                          <?=long2ip((ip2long($ifcfg['ipaddr']) | (~gen_subnet_mask_long($ifcfg['subnet']))) - 1); ?>
                         </td>
                       </tr>
                       <tr> 
@@ -260,6 +259,22 @@ function enable_change(enable_over) {
                           for a specific expiration time.<br>
                           The default is 86400 seconds.</td>
                       </tr>
+                      <tr>
+                        <td width="22%" valign="top" class="vncell">Next server</td>
+                        <td width="78%" class="vtable"> 
+                          <input name="nextserver" type="text" class="formfld" id="nextserver" size="20" value="<?=htmlspecialchars($pconfig['nextserver']);?>"><br>
+                          Specify the server from which clients should load the boot file. This is
+                          usually only needed with PXE booting and some VoIP phones, and can usually
+                          be left empty.</td>
+                      </tr>
+                      <tr>
+                        <td width="22%" valign="top" class="vncell">Filename</td>
+                        <td width="78%" class="vtable"> 
+                          <input name="filename" type="text" class="formfld" id="filename" size="20" value="<?=htmlspecialchars($pconfig['filename']);?>"><br>
+                          Specify the name of the boot file on the server above. This is
+                          usually only needed with PXE booting and some VoIP phones, and can usually
+                          be left empty.</td>
+                      </tr>
                       <tr> 
                         <td width="22%" valign="top">&nbsp;</td>
                         <td width="78%"> 
@@ -280,7 +295,7 @@ function enable_change(enable_over) {
                             </span></p></td>
                       </tr>
                     </table>
-              <table width="100%" border="0" cellpadding="0" cellspacing="0">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" summary="mac=mapping widget">
                 <tr>
                   <td width="35%" class="listhdrr">MAC address </td>
                   <td width="20%" class="listhdrr">IP address</td>
@@ -298,20 +313,20 @@ function enable_change(enable_over) {
                   <td class="listbg">
                     <?=htmlspecialchars($mapent['descr']);?>&nbsp;
                   </td>
-                  <td valign="middle" nowrap class="list"> <a href="services_dhcp_edit.php?if=<?=$if;?>&id=<?=$i;?>"><img src="e.gif" title="edit mapping" width="17" height="17" border="0"></a>
-                     &nbsp;<a href="services_dhcp.php?if=<?=$if;?>&act=del&id=<?=$i;?>" onclick="return confirm('Do you really want to delete this mapping?')"><img src="x.gif" title="delete mapping" width="17" height="17" border="0"></a></td>
+                  <td valign="middle" nowrap class="list"> <a href="services_dhcp_edit.php?if=<?=$if;?>&amp;id=<?=$i;?>"><img src="e.gif" title="edit mapping" width="17" height="17" border="0" alt="edit mapping"></a>
+                     &nbsp;<a href="services_dhcp.php?if=<?=$if;?>&amp;act=del&amp;id=<?=$i;?>" onclick="return confirm('Do you really want to delete this mapping?')"><img src="x.gif" title="delete mapping" width="17" height="17" border="0" alt="delete mapping"></a></td>
 				</tr>
 			  <?php $i++; endforeach; ?>
                 <tr> 
                   <td class="list" colspan="3"></td>
-                  <td class="list"> <a href="services_dhcp_edit.php?if=<?=$if;?>"><img src="plus.gif" title="add mapping" width="17" height="17" border="0"></a></td>
+                  <td class="list"> <a href="services_dhcp_edit.php?if=<?=$if;?>"><img src="plus.gif" title="add mapping" width="17" height="17" border="0" alt="add mapping"></a></td>
 				</tr>
               </table>
     </td>
   </tr>
 </table>
 </form>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 enable_change(false);
 //-->

@@ -3,7 +3,10 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
+	All rights reserved.
+	
+	Portions Copyright (C) 2007-2008 IKT <http://itison-ikt.de>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -129,48 +132,97 @@ function system_hostname_configure() {
 function system_routing_configure() {
 	global $config, $g;
 	
-	/* clear out old routes, if necessary */
-	if (file_exists("{$g['vardb_path']}/routes.db")) {
-		$fd = fopen("{$g['vardb_path']}/routes.db", "r");
-		if (!$fd) {
-			printf("Error: cannot open routes DB file in system_routing_configure().\n");
-			return 1;		
+	foreach (array(false, true) as $ipv6) {
+		$routes_db = $g['vardb_path'] . '/routes' . ($ipv6 ? '6' : '') . '.db';
+		$inet = ($ipv6 ? '-inet6' : '');
+		$strtconf = 'route' . ($ipv6 ? '6' : '');
+		
+		/* clear out old routes, if necessary */
+		if (file_exists($routes_db)) {
+			$fd = fopen($routes_db, "r");
+			if (!$fd) {
+				printf("Error: cannot open routes DB file in system_routing_configure().\n");
+				return 1;		
+			}
+			while (!feof($fd)) {
+				$oldrt = fgets($fd);
+				if ($oldrt)
+					mwexec("/sbin/route delete $inet " . escapeshellarg($oldrt));
+			}
+			fclose($fd);
+			unlink($routes_db);
 		}
-		while (!feof($fd)) {
-			$oldrt = fgets($fd);
-			if ($oldrt)
-				mwexec("/sbin/route delete " . escapeshellarg($oldrt));
-		}
-		fclose($fd);
-		unlink("{$g['vardb_path']}/routes.db");
-	}
 	
-	if (is_array($config['staticroutes']['route'])) {
+		if ((!$ipv6 && is_array($config['staticroutes']['route'])) || ($ipv6 && ipv6enabled())) {
 		
-		$fd = fopen("{$g['vardb_path']}/routes.db", "w");
-		if (!$fd) {
-			printf("Error: cannot open routes DB file in system_routing_configure().\n");
-			return 1;		
-		}
-		
-		foreach ($config['staticroutes']['route'] as $rtent) {
-			mwexec("/sbin/route add " . escapeshellarg($rtent['network']) . 
-				" " . escapeshellarg($rtent['gateway']));
+			$fd = fopen($routes_db, "w");
+			if (!$fd) {
+				printf("Error: cannot open routes DB file in system_routing_configure().\n");
+				return 1;		
+			}
 			
-			/* record route so it can be easily removed later (if necessary) */
-			fwrite($fd, $rtent['network'] . "\n");
-		}
+			$routes = $config['staticroutes'][$strtconf];
+			if (!is_array($routes))
+				$routes = array();
+			
+			if ($ipv6) {
+				/* disallow "internal" addresses to appear on the wire */
+				array_push($routes, array('network' => '::ffff:0.0.0.0/96',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+				array_push($routes, array('network' => '::0.0.0.0/96',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+
+				/* disallow packets to malicious 6to4 prefix */
+				array_push($routes, array('network' => '2002:e000::/20',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+				array_push($routes, array('network' => '2002:7f00::/24',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+				array_push($routes, array('network' => '2002:0000::/24',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+				array_push($routes, array('network' => '2002:ff00::/24',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+
+				/* Disallow unicast packets without outgoing scope identifiers,
+					or route such packets to a "default" interface, if it is
+					specified. */
+				array_push($routes, array('network' => 'fe80::/10',
+										  'gateway' => '::1',
+										  'opts'    => '-reject'));
+			}
 		
-		fclose($fd); 
+			foreach ($routes as $rtent) {
+				mwexec("/sbin/route add $inet " . escapeshellarg($rtent['network']) . 
+					' ' . escapeshellarg($rtent['gateway']) .
+					' ' . escapeshellarg($rtent['opts']));
+			
+				/* record route so it can be easily removed later (if necessary) */
+				fwrite($fd, $rtent['network'] . "\n");
+			}
+		
+			fclose($fd); 
+		}
 	}
 	
 	return 0;
 }
 
+function ipv6enabled() {
+	global $config;
+	return isset($config['system']['enableipv6']);
+}
+
 function system_routing_enable() {
 	global $config, $g;
 	
-	return mwexec("/sbin/sysctl net.inet.ip.forwarding=1");
+	$res = mwexec("/sbin/sysctl net.inet.ip.forwarding=1");
+	$res |= mwexec("/sbin/sysctl net.inet6.ip6.forwarding=1");
+	return $res;
 }
 
 function system_syslogd_start() {
@@ -197,7 +249,7 @@ local0.*					%/var/log/filter.log
 local3.*					%/var/log/vpn.log
 local4.*					%/var/log/portalauth.log
 local7.*					%/var/log/dhcpd.log
-*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none %/var/log/system.log
+*.notice;kern.debug;lpr.info;mail.crit;news.err;daemon.none;local0.none;local3.none;local4.none;local6.none;local7.none %/var/log/system.log
 security.*					%/var/log/system.log
 auth.info;authpriv.info;daemon.info		%/var/log/system.log
 *.emerg						*
@@ -234,7 +286,7 @@ EOD;
 
 		if (isset($syslogcfg['system'])) {
 			$syslogconf .= <<<EOD
-*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none @{$syslogcfg['remoteserver']}
+*.notice;kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local6.none;local7.none @{$syslogcfg['remoteserver']}
 security.*					@{$syslogcfg['remoteserver']}
 auth.info;authpriv.info;daemon.info		@{$syslogcfg['remoteserver']}
 *.emerg						@{$syslogcfg['remoteserver']}
@@ -255,28 +307,6 @@ EOD;
 		echo "done\n";
 		
 	return $retval;
-}
-
-function system_pccard_start() {
-	global $config, $g;
-	
-	if ($g['booting'])
-		echo "Initializing PC cards... ";
-	
-	/* kill any running pccardd */
-	killbypid("{$g['varrun_path']}/pccardd.pid");
-	
-	/* fire up pccardd */
-	$res = mwexec("/usr/sbin/pccardd -z -f {$g['etc_path']}/pccard.conf");
-	
-	if ($g['booting']) {
-		if ($res == 0)
-			echo "done\n";
-		else
-			echo "failed (probably no PC card controller present)\n";
-	}
-		
-	return $res;
 }
 
 function system_webgui_start() {
@@ -308,34 +338,34 @@ function system_webgui_start() {
 			/* default certificate/key */
 			$cert = <<<EOD
 -----BEGIN CERTIFICATE-----
-MIIBlDCB/gIBADANBgkqhkiG9w0BAQQFADATMREwDwYDVQQKEwhtMG4wd2FsbDAe
-Fw0wNTA1MTAxMjI0NDRaFw0wNzA1MTAxMjI0NDRaMBMxETAPBgNVBAoTCG0wbjB3
-YWxsMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDAShszhFz+o8lsMWTGgTxs
-TMPR+v4+qL5jXDyY97MLTGFK7aqQOtpIQc+TcTc4jklgOVlHoR7oBXrsi8YrbCd+
-83LPQmQoSPC0VqhfU3uYf3NzxiK8r97aPCsmWgwT2pQ6TcESTm6sF7nLprOf/zFP
-C4jE2fvjkbzyVolPywBuewIDAQABMA0GCSqGSIb3DQEBBAUAA4GBAFR962c4R5tV
-cTn0OQcszYoW6WC+ini9tQQh5ku5jYDAiC+00atawJEVLnL3lwAcpSKTIWlTkD20
-tl3lz5br1qFgYky+Rd0kwS2nk9jRbkxSXxd6KJVnNRCKre28aw3ENzZfCSurPQsX
-UPp5er+NtwMT1g7s/JDmKTC4w1rGr5/c
+MIIBlDCB/gIBAjANBgkqhkiG9w0BAQQFADATMREwDwYDVQQKEwhtMG4wd2FsbDAe
+Fw0wNzAzMTAxMzE4MzJaFw0wOTAzMTAxMzE4MzJaMBMxETAPBgNVBAoTCG0wbjB3
+YWxsMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC+4vzJYQu+BlqmlPTrnZ5N
+px7fDp51TwGn6TIhykW//IQm6EKPysZXGSa3yRdTNSraeAee0Qq96LQAstO2WibG
+J+HI+Bcx99j+fHnndUz19bEWkIQ5JbWRnIJ8Oq68h7IDp8g0+9DWQ7bSbsccq7CA
+nCowvG4zY3zeJ/djbHkSkQIDAQABMA0GCSqGSIb3DQEBBAUAA4GBAGSo5A00HzoJ
+kD7HzBgB3KwOm4IE1QMaD0NnYTd8g/5CxEW+Uu+Sk43M1ftIv9p+KTpyyIuZ9xH7
+26F2R+WAj9oTuPU5wfozt89O+fx+avt3MRrvaipGVU6O7jEcAM8MtYjzL7/FCmkC
+Zd7GpQZnyHbDIwxSw/i6GOA9+8+Y3VP6
 -----END CERTIFICATE-----
 
 EOD;
 
 			$key = <<<EOD
 -----BEGIN RSA PRIVATE KEY-----
-MIICXQIBAAKBgQDAShszhFz+o8lsMWTGgTxsTMPR+v4+qL5jXDyY97MLTGFK7aqQ
-OtpIQc+TcTc4jklgOVlHoR7oBXrsi8YrbCd+83LPQmQoSPC0VqhfU3uYf3NzxiK8
-r97aPCsmWgwT2pQ6TcESTm6sF7nLprOf/zFPC4jE2fvjkbzyVolPywBuewIDAQAB
-AoGAbJJrQW9fQrggJuLMz/hwsYW2m31oyOBmf5u463YQtjRuSuxe/gj87weZuNqY
-H2rXq2k2K+ehl8hgW+egASyUL3L7kCkEAsVREujKTEyhSqqIRDPWTxo9S/YA9Gvn
-2ZnJvkrcKjqCO9aHX3rvJOK/ErYI6akctgI3KmgkYw5XNmECQQDuZU97RTWH9rmP
-aQr57ysNXxgFsyhetOOqeYkPtIVwpOiNbfwE1zi5RGdtO4Ku3fG1lV4J2UoWJ9yD
-awdoyYIHAkEAzn0xJ90IjPsHk+8SODEj5JGdHSZPNu1tgtrbjEi9sfGWg4K7XTxr
-QW90pWb1bKKU1uh5FzW6OhnFfuQXt1kC7QJAPSthqY+onKqCEnoxhtAHi/bKgyvl
-P+fKQwPMV2tKkgy+XwvJjrRqqZ8TqsOKVLQ+QQmCh6RpjiXMPyxHSmvqIQJBAKLR
-HF1ucDuaBROkwx0DwmWMW/KMLpIFDQDNSaiIAuu4rxHrl4mhBoGGPNffI04RtILw
-s+qVNs5xW8T+XaT4ztECQQDFHPnZeoPWE5z+AX/UUQIUWaDExz3XRzmIxRbOrlFi
-CsF1s0TdJLi/wzNQRAL37A8vqCeVFR/ng3Xpg96Yg+8Z
+MIICXAIBAAKBgQC+4vzJYQu+BlqmlPTrnZ5Npx7fDp51TwGn6TIhykW//IQm6EKP
+ysZXGSa3yRdTNSraeAee0Qq96LQAstO2WibGJ+HI+Bcx99j+fHnndUz19bEWkIQ5
+JbWRnIJ8Oq68h7IDp8g0+9DWQ7bSbsccq7CAnCowvG4zY3zeJ/djbHkSkQIDAQAB
+AoGAdh9qxIdMR+QQtqLYyPD5pB31yZx3TCp+4NQ6lJRiA0MU2CrD/c1CXWWQAwzq
+ZTAye4zpUksTtZ9JvGDtCBvTf5vgnCymwQfIXTniI/JyvzKP4dvpDcetxcnVETw6
+fBxAGHWm3uhu5QbEBVK/QN1h+O4BOU/UQeoJBnHdSoUPTAECQQDqaHjfGA5R4rzl
+Nkbug5bz4QOZHfXKBMRfbGqZ3kbzJy7ERuHECYUBE/b+HlC6UZ2CaXun909Ds/58
+DUvWN/lRAkEA0Hg+6eGXxKGoPEmONEQub/n/nSUlbSdSF5qfcoVTqLPu/fvR/PrM
+b8UGlj8EAXZHaU0EiLKYdjIZQQwBnhU1QQJBAIerPcIJn0gfjiqvtnAXs0elxTpa
+z8ZD6hA8pJo3vyK+W9/4EnUu+U79aif8Dcc4s4wmVw6JIdRSmgjcfTcYIHECQFTg
+kGTzJ7K0SuX44MAg/nMy60LVC+7sMn1PxBmBdTVbxTN9otqIVlIveuYTVBMwUBTs
+easaY/7DmQql08bERcECQAFdAJ0ZuVId1za1Y8V6l4UcNpVnIKGKhGFfqUghv15J
+hnum6oGAvY0KROJ6BTjjOU6AeHCYa01iOaRfBxJmS+o=
 -----END RSA PRIVATE KEY-----
 
 EOD;
@@ -471,6 +501,7 @@ function system_reboot_sync() {
 
 function system_reboot_cleanup() {
 	captiveportal_radius_stop_all();
+    voucher_save_db_to_config();
 }
 
 function system_do_shell_commands($early = 0) {
@@ -492,7 +523,7 @@ function system_do_shell_commands($early = 0) {
 function system_do_extensions($early = false) {
 	global $config, $g;
 	
-	if (!is_dir("{$g['etc_path']}/inc/ext"))
+	if (!is_dir("{$g['etc_path']}/inc/ext") || is_dir("{$g['www_path']}/ext"))
 		return;
 	
 	$dh = @opendir("{$g['etc_path']}/inc/ext");
@@ -517,8 +548,8 @@ function system_do_extensions($early = false) {
     				continue;
     			if (is_dir("{$g['www_path']}/ext/$extd")) {
     			    // Create links
-    			    symlink("{$g['www_path']}/.htpasswd",".htpasswd");
-    			    symlink("{$g['www_path']}/gui.css","gui.css");
+    			    symlink("{$g['www_path']}/.htpasswd","{$g['www_path']}/ext/{$extd}/.htpasswd");
+    			    symlink("{$g['www_path']}/gui.css","{$g['www_path']}/ext/{$extd}/gui.css");
     			}
     		}
     		closedir($dh);
@@ -540,6 +571,9 @@ function system_console_configure() {
 
 function system_dmesg_save() {
 	global $g;
+	
+	if (file_exists("{$g['varlog_path']}/dmesg.boot"))
+		return 0;	/* nothing to do */
 	
 	exec("/sbin/dmesg", $dmesg);
 	
@@ -580,30 +614,13 @@ function system_set_harddisk_standby() {
 		$standby = $config['system']['harddiskstandby'];
 		// Check for a numeric value
 		if (is_numeric($standby)) {
-			// Sync the disk(s)
-			mwexec('/bin/sync');
-			if (!mwexec('/sbin/sysctl hw.ata.suspend=' . ((int)$standby*60))) {
-				// Reinitialize ATA-drives
-				mwexec('/usr/local/sbin/atareinit');
-				if ($g['booting']) {
-					echo "done\n";
-				}
-			} else if ($g['booting']) {
-				echo "failed\n";
+			mwexec("/usr/local/sbin/ataidle -S $standby 0 0");
+			if ($g['booting']) {
+				echo "done\n";
 			}
 		} else if ($g['booting']) {
 			echo "failed\n";
 		}
-	}
-}
-
-function system_polling_configure() {
-	global $config, $g;
-	
-	if (isset($config['system']['polling'])) {
-		mwexec("/sbin/sysctl kern.polling.enable=1");
-	} else {
-		mwexec("/sbin/sysctl kern.polling.enable=0");
 	}
 }
 
@@ -677,6 +694,110 @@ EOD;
 	fclose($fd);
 	
 	return 0;
+}
+
+function system_check_reset_button() {
+	$specplatform = system_identify_specific_platform();
+
+	if ($specplatform['name'] != "wrap" && $specplatform['name'] != "alix")
+		return 0;
+
+	$retval = mwexec("/usr/local/sbin/" . $specplatform['name'] . "resetbtn");
+
+	if ($retval == 99) {
+		/* user has pressed reset button for 2 seconds - 
+		   reset to factory defaults */
+		echo <<<EOD
+
+***********************************************************************
+* Reset button pressed - resetting configuration to factory defaults. *
+* The system will reboot after this completes.                        *
+***********************************************************************
+
+
+EOD;
+		
+		reset_factory_defaults();
+		system_reboot_sync();
+		exit(0);
+	}
+
+	return 0;
+}
+
+/* attempt to identify the specific platform (for embedded systems)
+   Returns an array with two elements:
+	name => platform string (e.g. 'wrap', 'alix' etc.)
+	descr => human-readable description (e.g. "PC Engines WRAP")
+*/
+function system_identify_specific_platform() {
+	global $g;
+	
+	if ($g['platform'] == 'generic-pc')
+		return array('name' => 'generic-pc', 'descr' => "Generic PC");
+	
+	if ($g['platform'] == 'generic-pc-cdrom')
+		return array('name' => 'generic-pc-cdrom', 'descr' => "Generic PC (CD-ROM)");
+	
+	/* the rest of the code only deals with 'embedded' platforms */
+	if ($g['platform'] != 'embedded')
+		return array('name' => $g['platform'], 'descr' => $g['platform']);
+	
+	$dmesg = system_get_dmesg_boot();
+	
+	if (strpos($dmesg, "PC Engines WRAP") !== false)
+		return array('name' => 'wrap', 'descr' => 'PC Engines WRAP');
+	
+	if (strpos($dmesg, "PC Engines ALIX") !== false)
+		return array('name' => 'alix', 'descr' => 'PC Engines ALIX');
+
+	if (preg_match("/Soekris net45../", $dmesg, $matches))
+		return array('name' => 'net45xx', 'descr' => $matches[0]);
+	
+	if (preg_match("/Soekris net48../", $dmesg, $matches))
+		return array('name' => 'net48xx', 'descr' => $matches[0]);
+		
+	if (preg_match("/Soekris net55../", $dmesg, $matches))
+		return array('name' => 'net55xx', 'descr' => $matches[0]);
+	
+	/* unknown embedded platform */
+	return array('name' => 'embedded', 'descr' => 'embedded (unknown)');
+}
+
+function system_get_dmesg_boot() {
+	global $g;
+	
+	if (!file_exists("{$g['varlog_path']}/dmesg.boot"))
+		system_dmesg_save();
+	
+	return file_get_contents("{$g['varlog_path']}/dmesg.boot");
+}
+
+function storage_disk_get_devices() {
+	return explode(" ", trim(exec("/sbin/sysctl -n kern.disks")));
+}
+
+function storage_read_diskinfo($device) {
+	$output = preg_split("/\s+/", exec("/usr/sbin/diskinfo $device"));
+
+	$info['sectorsize'] = $output[1];
+	$info['sizeinbytes'] = $output[2];
+	$info['sizeinsectors'] = $output[3];
+
+	return $info;
+}
+
+function storage_disk_get_name($device) {
+	
+	$dmesg = system_get_dmesg_boot();
+	$matches = array();
+	if (preg_match("/^$device:.*<(.+)>/m", $dmesg, $matches)) {
+		$name = $matches[1];
+	} else {
+		$name = "unavailable";
+	}
+	
+	return $name;
 }
 
 ?>

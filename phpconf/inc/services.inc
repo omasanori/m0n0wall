@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -152,6 +152,11 @@ host s_{$dhcpif}_{$i} {
 EOD;
 				if ($sm['ipaddr'])
 					$dhcpdconf .= "	fixed-address {$sm['ipaddr']};\n";
+
+				if ($sm['next-server'])
+					$dhcpdconf .= "	next-server {$sm['next-server']};\n";
+				if ($sm['filename'])
+					$dhcpdconf .= "	filename \"{$sm['filename']}\";\n";
 				
 				$dhcpdconf .= "}\n";
 				$i++;
@@ -279,7 +284,6 @@ function services_dyndns_configure() {
 	sigkillbypid("{$g['varrun_path']}/ez-ipupdate.pid", "QUIT");
 	
 	$dyndnscfg = $config['dyndns'];
-	$wancfg = $config['interfaces']['wan'];
 	
 	if (isset($dyndnscfg['enable'])) {
 	
@@ -388,6 +392,7 @@ function services_dnsmasq_configure() {
 	
 	if (!$g['booting']) {
 		services_dhcpd_configure();
+		filter_configure();
 	}
 
 	return 0;
@@ -410,8 +415,15 @@ function services_snmpd_configure() {
 			printf("Error: cannot open snmpd.conf in services_snmpd_configure().\n");
 			return 1;
 		}
-			
+		
+		$version = chop(file_get_contents("{$g['etc_path']}/version"));
+		$specplatform = system_identify_specific_platform();
+		$sysDescr = "m0n0wall " . php_uname("n") . " " . $version . " " .
+			$specplatform['name'] . " " . php_uname("s") . " " . php_uname("r") .
+			" " . php_uname("m");
+		
 		$snmpdconf = <<<EOD
+sysdescr "$sysDescr"
 syslocation "{$config['snmpd']['syslocation']}"
 syscontact "{$config['snmpd']['syscontact']}"
 rocommunity "{$config['snmpd']['rocommunity']}"
@@ -461,8 +473,7 @@ function services_proxyarp_configure() {
 	
 		foreach ($paa as $paif => $paents) {
 			if ($paif == "wan" && !(is_ipaddr($config['interfaces']['wan']['ipaddr']) ||
-					($config['interfaces']['wan']['ipaddr'] == "dhcp") ||
-					($config['interfaces']['wan']['ipaddr'] == "bigpond")))
+					($config['interfaces']['wan']['ipaddr'] == "dhcp")))
 				continue;
 			
 			$args = $config['interfaces'][$paif]['if'] . " auto";
@@ -539,7 +550,7 @@ EOD;
 			fclose($fd);
 			
 			/* invoke nsupdate */
-			$cmd = "/usr/sbin/nsupdate -k {$g['varetc_path']}:{$keyname}";
+			$cmd = "/usr/bin/nsupdate -k {$g['varetc_path']}/K{$keyname}+157+00000.private";
 			if (isset($config['dnsupdate']['usetcp']))
 				$cmd .= " -v";
 			$cmd .= " {$g['varetc_path']}/nsupdatecmds";
