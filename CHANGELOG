@@ -3,8 +3,98 @@ $Id$
 *** Note: Please add new entries to the top of this file. ***
 -------------------------------------------------------------------------------
 
+- fix MPD IPCP options reject processing (BellSouth/AT&T SECONDARYDNS
+  reject problem)
+
+- updated PHP to 4.4.8
+
+1.232
+-----
+
+- captive portal reliability fixes (locking, treatment of sessions that
+  have not passed any traffic by the time they end, skipping sessions
+  sometimes during periodic pruning runs) - thanks to Janåke Rönnblom
+
+- fixed FIN handling in ipnat FTP proxy
+
+- updated timezone data
+
+1.231
+-----
+
+- fixed PPTP VPN idle timeout and WAN PPPoE/PPTP dial-on-demand
+
+- fixed file download via exec.php for Internet Explorer when using HTTPS
+
+1.23
+----
+
+- updated PHP to 4.4.6
+
+- update default webGUI SSL certificate
+
+- add support for hardware button on WRAP (if pressed during boot, it will
+  trigger a reset to factory defaults)
+
+1.23b4
+------
+
+- update time zone data to reflect US DST changes
+
+- fix captive portal RADIUS login when only one RADIUS server is specified (mkasper)
+
+- changes in Captive Portal (jdegraeve)
+  - Fix bug: The option RADIUS authentication/No authentication working reversely.
+
+1.23b3
+------
+
+- add support for Framed-IP-Address attribute from RADIUS server for
+  PPTP VPN (i.e. allow the RADIUS server to assign the client IP address)
+
+- return m0n0wall-specific string in SNMP sysDescr; format:
+  $os $host $version $platform $base $base_version $base_hardware
+  e.g. "m0n0wall m0n0wall.local 1.23b3 wrap FreeBSD 4.11-RELEASE-p26 i386"
+
+- add watchdog code for WRAP (contributed by Marcel Wiget)
+  -> this is off by default and can be enabled on the System: Advanced page
+
+- add fix for ipnat FTP proxy to properly handle RST packets from an active
+  mode FTP client behind m0n0wall
+
+- add HAVE_ISC_READER option in Dnsmasq to make DHCP lease registration
+  feature work again
+
 1.23b2
 ------
+
+- disabled core dumping by default (to avoid running out of MFS space) (mkasper)
+
+- back-ported MSS clamping fix from MPD 4.0b5 to MPD 3.18 (fixes MTU
+  issues with some PPTP clients during "large" uploads from the PPTP
+  client to a remote server)
+
+- changes in Captive portal (jdegraeve):
+  - Changed CP database to use serialisation
+  - Almost directly read in the radius servers from the config instead of parsing the radius.db file we don't need
+  - Webgui Status:Captive portal now uses captiveportal_read_db()
+  - Radius accounting: now sends session-time in interim accounting
+
+- update extensions with userpatch (sil)
+
+- updated base system to FreeBSD 4.11-RELEASE-p22
+
+- updated Dnsmasq to 2.35 (bugfixes)
+
+- updated DHCP/DHCPrelay to 3.0.5 (bugfixes)
+
+- updated ipsec-tools to 0.6.6 (fixes memleak)
+
+- updated PHP to 4.4.4
+
+- Addition of netstat -m|-s and kldstat to status
+
+- Comply to PHP-4.4.0 array datatypes in system_firmware.php/guiconfig.php
 
 - changes in Captive portal (jdegraeve):
   - add PfSense ideas (slighty different implemented):
