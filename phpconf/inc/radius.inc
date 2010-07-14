@@ -33,7 +33,7 @@
     any other GPL-like (LGPL, GPL2) License.
 
         This version of RADIUS.php has been modified by
-        Jonathan De Graeve <jonathan@imelda.be> to integrate with M0n0wall <http://www.m0n0.ch/wall>
+        Jonathan De Graeve <jonathan@esstec.be> to integrate with M0n0wall <http://www.m0n0.ch/wall>
 
         Changes made include:
         * StandardAttributes for M0n0wall use
@@ -1036,7 +1036,7 @@ class Auth_RADIUS_Acct extends Auth_RADIUS
             $this->putAttribute(RADIUS_USER_NAME, $this->username);
         }
         $this->putAttribute(RADIUS_ACCT_STATUS_TYPE, $this->status_type);
-        if (isset($this->session_time) && $this->status_type == RADIUS_STOP) {
+        if (isset($this->session_time)) {
             $this->putAttribute(RADIUS_ACCT_SESSION_TIME, $this->session_time);
         }
         if (isset($this->authentic)) {

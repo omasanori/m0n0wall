@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,132 @@
 /* include all configuration functions */
 require_once("functions.inc");
 
+function services_dhcp6s_configure() {
+	global $config, $g;
+	
+	/* kill any running dhcp6s */
+	$dircont = opendir($g['varrun_path']);
+	while ($file = readdir($dircont)) {
+		if (preg_match("/dhcp6s/",$file)) killbypid("{$g['varrun_path']}/$file");
+	}
+	closedir($dircont);
+
+	killbypid("{$g['varrun_path']}/dhcp6s.pid");
+	if (!file_exists("{$g['varrun_path']}/dhcp6sctlkey"))  mwexec("touch {$g['varrun_path']}/dhcp6sctlkey");
+	
+	$syscfg = $config['system'];
+	$dhcp6scfg = $config['dhcpd'];
+	
+	/* DHCPv6 enabled on any interfaces? */
+	$dhcp6senable = false;
+	foreach ($dhcp6scfg as $dhcpif => $dhcpifconf) {
+		if (isset($dhcpifconf['v6enable']) && (($dhcpif == "lan") || (isset($config['interfaces'][$dhcpif]['v6enable']) && $config['interfaces'][$dhcpif]['if'] && (!$config['interfaces'][$dhcpif]['bridge']))))
+			$dhcp6senable = true;
+	}
+	
+	if (!$dhcp6senable)
+		return 0;
+	
+	if ($g['booting'])
+		echo "Starting DHCPv6 service... ";
+	else
+		sleep(1);
+
+	$dhcp6sifs = array();
+	foreach ($dhcp6scfg as $dhcpif => $dhcpifconf) {
+		$ifcfg = $config['interfaces'][$dhcpif];
+		
+		/* write dhcp6s.conf */
+		$fd = fopen("{$g['varetc_path']}/dhcp6s.{$ifcfg['if']}.conf", "w");
+		if (!$fd) {
+			printf("Error: cannot open dhcp6s.conf in services_dhcp6s_configure().\n");
+			return 1;
+		}
+		$dhcp6sconf = <<<EOD
+	
+option domain-name "{$syscfg['domain']}";
+
+EOD;
+		if (!isset($dhcpifconf['v6enable']))
+			continue;
+		$v6subnet = gen_subnet6($ifcfg['ipaddr6'], $ifcfg['subnet6']);
+		$dnscfg = "";
+		unset($ifconfiginfo);
+		exec("/sbin/ifconfig " . $ifcfg['if'], $ifconfiginfo);
+		$ifmacaddr = "01:01:01:01:01:01";
+		foreach ($ifconfiginfo as $ici) {	
+			if (preg_match("/ether (\S+)/", $ici, $matches)) {
+				$ifmacaddr = $matches[1];
+			} 
+		}
+			
+		if (is_array($dhcpifconf['dnsserver']) && ($dhcpifconf['dnsserver'][0])) {
+			list($dnsconfig['dns1'],$dnsconfig['dns2'],$dnsconfig['dns3']) = $dhcpifconf['dnsserver'];
+			if (isipaddr6($dnsconfig['dns1']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns1'] . " ;\n";
+			if (isipaddr6($dnsconfig['dns2']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns2'] . ";\n";
+			if (isipaddr6($dnsconfig['dns3']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns3'] . ";\n";
+		} else if (isset($config['dnsmasq']['enable'])) {
+			$dnscfg .= "option domain-name-servers " . $ifcfg['ipaddr6'] . ";\n";
+		} else if (is_array($syscfg['dnsserver']) && ($syscfg['dnsserver'][0])) {
+			list($dnsconfig['dns1'],$dnsconfig['dns2'],$dnsconfig['dns3']) = $syscfg['dnsserver'];
+			if (isipaddr6($dnsconfig['dns1']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns1'] . ";\n";
+			if (isipaddr6($dnsconfig['dns2']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns2'] . ";\n";
+			if (isipaddr6($dnsconfig['dns3']))	$dnscfg .= "option domain-name-servers" . $dnsconfig['dns3']  . ";\n";
+		}
+		$dhcp6sconf .= <<<EOD
+$dnscfg
+
+interface {$ifcfg['if']} {
+	preference 255;
+	address-pool pool{$ifcfg['if']} {$dhcpifconf['v6defaultleasetime']} {$dhcpifconf['v6maxleasetime']};
+};
+
+pool pool{$ifcfg['if']} {
+        range {$dhcpifconf['v6range']['from']} to {$dhcpifconf['v6range']['to']} ;
+};
+
+host m0n0wall {
+        duid {$ifmacaddr};
+        address {$ifcfg['ipaddr6']} infinity;
+};
+
+EOD;
+		/* add static mappings */
+		if (is_array($dhcpifconf['staticmap'])) {
+			$i = 0;
+			foreach ($dhcpifconf['staticmap'] as $sm) {
+				if (is_ipaddr6($sm['ipaddr'])){
+					$dhcp6sconf .= <<<EOD
+host reserved{$i} {
+        duid {$sm['mac']};
+        address {$sm['ipaddr']} {$dhcpifconf['v6defaultleasetime']};
+};
+
+EOD;
+					$i++;
+				}
+			}
+		}
+			
+		$dhcp6sifs[] = $ifcfg['if'];
+		fwrite($fd, $dhcp6sconf);
+		fclose($fd);
+	}
+	
+	/* fire up dhcp6s for each if */
+	$i = 64705;
+	foreach ($dhcp6sifs as $dhcp6sif) {
+		mwexec("/usr/local/sbin/dhcp6s -c {$g['varetc_path']}/dhcp6s.{$dhcp6sif}.conf -k {$g['varrun_path']}/dhcp6sctlkey -p {$i} -P {$g['varrun_path']}/dhcp6s.{$dhcp6sif}.pid {$dhcp6sif}" );
+		$i++;
+	}
+		
+	if (!$g['booting']) {
+		filter_configure();
+	} else
+		echo "done\n";
+	
+	return 0;
+}
 function services_dhcpd_configure() {
 	global $config, $g;
 	
@@ -145,16 +271,23 @@ EOD;
 		
 			$i = 0;
 			foreach ($dhcpifconf['staticmap'] as $sm) {
-				$dhcpdconf .= <<<EOD
+				if (is_ipaddr($sm['ipaddr'])) {
+					$dhcpdconf .= <<<EOD
 host s_{$dhcpif}_{$i} {
 	hardware ethernet {$sm['mac']};
 
 EOD;
-				if ($sm['ipaddr'])
-					$dhcpdconf .= "	fixed-address {$sm['ipaddr']};\n";
-				
-				$dhcpdconf .= "}\n";
-				$i++;
+					if ($sm['ipaddr'])
+						$dhcpdconf .= "	fixed-address {$sm['ipaddr']};\n";
+
+					if ($sm['next-server'])
+						$dhcpdconf .= "	next-server {$sm['next-server']};\n";
+					if ($sm['filename'])
+						$dhcpdconf .= "	filename \"{$sm['filename']}\";\n";
+					
+					$dhcpdconf .= "}\n";
+					$i++;
+				}
 			}
 		}
 		
@@ -279,7 +412,6 @@ function services_dyndns_configure() {
 	sigkillbypid("{$g['varrun_path']}/ez-ipupdate.pid", "QUIT");
 	
 	$dyndnscfg = $config['dyndns'];
-	$wancfg = $config['interfaces']['wan'];
 	
 	if (isset($dyndnscfg['enable'])) {
 	
@@ -373,6 +505,10 @@ function services_dnsmasq_configure() {
 				" -s {$config['system']['domain']}";
 		}
 		
+		if (isset($config['dnsmasq']['allservers'])) {
+			$args .= " --all-servers";
+		}
+		
 		if (isset($config['dnsmasq']['domainoverrides']) && is_array($config['dnsmasq']['domainoverrides'])) {
 			foreach($config['dnsmasq']['domainoverrides'] as $override) {
 				$args .= " " . escapeshellarg('--server=/' . $override['domain'] . '/' . $override['ip']);
@@ -388,6 +524,7 @@ function services_dnsmasq_configure() {
 	
 	if (!$g['booting']) {
 		services_dhcpd_configure();
+		filter_configure();
 	}
 
 	return 0;
@@ -410,8 +547,15 @@ function services_snmpd_configure() {
 			printf("Error: cannot open snmpd.conf in services_snmpd_configure().\n");
 			return 1;
 		}
-			
+		
+		$version = chop(file_get_contents("{$g['etc_path']}/version"));
+		$specplatform = system_identify_specific_platform();
+		$sysDescr = "m0n0wall " . php_uname("n") . " " . $version . " " .
+			$specplatform['name'] . " " . php_uname("s") . " " . php_uname("r") .
+			" " . php_uname("m");
+		
 		$snmpdconf = <<<EOD
+sysdescr "$sysDescr"
 syslocation "{$config['snmpd']['syslocation']}"
 syscontact "{$config['snmpd']['syscontact']}"
 rocommunity "{$config['snmpd']['rocommunity']}"
@@ -461,8 +605,7 @@ function services_proxyarp_configure() {
 	
 		foreach ($paa as $paif => $paents) {
 			if ($paif == "wan" && !(is_ipaddr($config['interfaces']['wan']['ipaddr']) ||
-					($config['interfaces']['wan']['ipaddr'] == "dhcp") ||
-					($config['interfaces']['wan']['ipaddr'] == "bigpond")))
+					($config['interfaces']['wan']['ipaddr'] == "dhcp")))
 				continue;
 			
 			$args = $config['interfaces'][$paif]['if'] . " auto";
@@ -539,7 +682,7 @@ EOD;
 			fclose($fd);
 			
 			/* invoke nsupdate */
-			$cmd = "/usr/sbin/nsupdate -k {$g['varetc_path']}:{$keyname}";
+			$cmd = "/usr/bin/nsupdate -k {$g['varetc_path']}/K{$keyname}+157+00000.private";
 			if (isset($config['dnsupdate']['usetcp']))
 				$cmd .= " -v";
 			$cmd .= " {$g['varetc_path']}/nsupdatecmds";

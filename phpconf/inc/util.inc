@@ -3,7 +3,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -27,6 +27,8 @@
 	ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 	POSSIBILITY OF SUCH DAMAGE.
 */
+
+require_once("IPv6.php");
 
 /* kill a process by pid file */
 function killbypid($pidfile) {
@@ -59,6 +61,22 @@ function gen_subnet($ipaddr, $bits) {
 	return long2ip(ip2long($ipaddr) & gen_subnet_mask_long($bits));
 }
 
+/* return the subnet address given a host address and a subnet bit count, IPv6 variant */
+function gen_subnet6($ipaddr, $bits) {
+	if (!is_ipaddr6($ipaddr) || !is_numeric($bits))
+		return '';
+	
+	return Net_IPv6::getNetmask($ipaddr, $bits);
+}
+/* return the broadcast address given a host address and a subnet bit count, IPv6 variant */
+function gen_subnet_max6($ipaddr, $bits) {
+	if (!is_ipaddr6($ipaddr) || !is_numeric($bits))
+		return '';
+	$ipasbin = Net_IPv6::_ip2Bin(Net_IPv6::removeNetmaskSpec($ipaddr));
+	$binBcast = substr($ipasbin,0,$bits) . str_repeat('1',128 - $bits);
+	
+	return  Net_IPv6::_Bin2ip($binBcast);
+}
 /* return the highest (broadcast) address in the subnet given a host address and a subnet bit count */
 function gen_subnet_max($ipaddr, $bits) {
 	if (!is_ipaddr($ipaddr) || !is_numeric($bits))
@@ -87,6 +105,14 @@ function is_numericint($arg) {
 }
 
 /* returns true if $ipaddr is a valid dotted IPv4 address */
+function is_ipaddr4or6($ipaddr) {
+	if (is_ipaddr($ipaddr)) 
+		return true;
+	else if (ipv6enabled()) 
+		return is_ipaddr6($ipaddr);
+	else 
+		return false;	
+}
 function is_ipaddr($ipaddr) {
 	if (!is_string($ipaddr))
 		return false;
@@ -98,6 +124,23 @@ function is_ipaddr($ipaddr) {
 		return true;
 	else
 		return false;
+}
+
+/* returns true if $ipaddr is a valid IPv6 address with not prefix */
+function is_ipaddr6($ipaddr) {
+	if (!Net_IPv6::getNetmaskSpec($ipaddr)) {
+		return Net_IPv6::checkIPv6($ipaddr);
+	} else {
+	return false;
+	}
+}
+
+function isInNetmask6($ip, $netmask, $bits=null) {
+	return Net_IPv6::isInNetmask($ip, $netmask, $bits);
+}
+
+function ipv6Uncompress($ip) {
+	return Net_IPv6::Uncompress($ip);
 }
 
 /* returns true if $ipaddr is a valid dotted IPv4 address or an alias thereof */
@@ -203,7 +246,7 @@ function is_macaddr($macaddr) {
 
 /* returns true if $name is a valid name for an alias */
 function is_validaliasname($name) {
-	if (!preg_match("/[^a-zA-Z0-9]/", $name))
+	if (!preg_match("/[^a-zA-Z0-9-]/", $name))
 		return true;
 	else
 		return false;
@@ -230,6 +273,9 @@ function get_interface_list() {
 	exec("/usr/bin/netstat -inW -f link", $linkinfo);
 	array_shift($linkinfo);
 	
+	/* get dmesg output in order to parse interface driver names from it */
+	$dmesg = system_get_dmesg_boot();
+	
 	$iflist = array();
 	
 	foreach ($linkinfo as $link) {
@@ -239,7 +285,7 @@ function get_interface_list() {
 		if (substr($ifname, -1) == "*")
 			$ifname = substr($ifname, 0, strlen($ifname) - 1);
 		
-		if (!preg_match("/^(ppp|sl|gif|faith|lo|ng|vlan|tun)/", $ifname)) {
+		if (!preg_match("/^(ppp|sl|gif|faith|lo|ng|vlan|tun|enc)\d/", $ifname)) {
 			$iflist[$ifname] = array();
 			
 			$iflist[$ifname]['mac'] = chop($alink[3]);
@@ -255,6 +301,16 @@ function get_interface_list() {
 						$iflist[$ifname]['up'] = true;
 					break;
 				}
+			}
+			
+			/* try to figure out driver name */
+			if (preg_match("/$ifname:\s+<(.+?)>/", $dmesg, $matches)) {
+				/* truncate at 40 characters; some of these get really long
+				   and mess up the CLI and webGUI display */
+				$drvname = $matches[1];
+				if (strlen($drvname) > 40)
+					$drvname = substr($drvname, 0, 40) . "...";
+				$iflist[$ifname]['drvname'] = $drvname;
 			}
 		}
 	}
@@ -278,17 +334,18 @@ function mwexec($command) {
 	return $retval; 
 }
 
-/* wrapper for exec() in background */
+/* wrapper for exec() in background; returns PID of background process */
 function mwexec_bg($command) {
 
 	global $g;
 	
 	if ($g['debug']) {
 		if (!$_SERVER['REMOTE_ADDR'])
-			echo "mwexec(): $command\n";
+			echo "mwexec_bg(): $command\n";
 	}
 	
-	exec("nohup $command > /dev/null 2>&1 &");
+	$pid = shell_exec("nohup $command > /dev/null 2>&1 & echo \$!");
+	return $pid;
 }
 
 /* unlink a file, if it exists */
@@ -327,7 +384,7 @@ function alias_expand($name) {
 	
 	if (isset($aliastable[$name]))
 		return $aliastable[$name];
-	else if (is_ipaddr($name) || is_subnet($name))
+	else if (is_ipaddr($name) || is_subnet($name) || is_ipaddr6($name))
 		return $name;
 	else
 		return null;
@@ -448,6 +505,160 @@ function mac_format($clientmac) {
         default:
         return $clientmac;
     }
+}
+
+function resolve_retry($hostname, $retries = 5) {
+
+	if (is_ipaddr($hostname))
+		return $hostname;
+
+	for ($i = 0; $i < $retries; $i++) {
+		$ip = gethostbyname($hostname);
+		
+		if ($ip && $ip != $hostname) {
+			/* success */
+			return $ip;
+		}
+		
+		sleep(1);
+	}
+	
+	return false;
+}
+
+function subnet_size_to_cidr($size) {
+	$cidr = 32;
+	
+	while ($size > 1) {
+		$size /= 2;
+		$cidr--;
+	}
+	
+	return $cidr;
+}
+
+/* converts the given IPv4 address to a string of v6 hex nibbles ("xxxx:xxxx"),
+   mostly for use in 6to4 calculations */
+function convert_to_6to4_nibbles($ipaddr) {
+	if (!is_ipaddr($ipaddr))
+		return false;
+	$octets = explode('.', $ipaddr);
+	return sprintf('%02x%02x:%02x%02x',	$octets[0], $octets[1], $octets[2], $octets[3]);
+}
+
+/* generate a self-signed SSL cert/key (1024-bit, valid for 2 years) and return it in PEM format */
+function generate_self_signed_cert($orgname, $cn) {
+	global $g;
+	
+	/* check local clock first - must be set to something after the release date
+	  (subtract a day to avoid TZ problems with early adopters) */
+	$buildtime = trim(file_get_contents("{$g['etc_path']}/version.buildtime.unix")) - 86400;
+	if (time() < $buildtime)
+		return false;
+	
+	$dn = array(
+	    "organizationName" => $orgname,
+	    "commonName" => $cn
+	);
+
+	$config = array(
+		"digest_alg" => "sha1",
+		"private_key_bits" => 1024
+	);
+
+	$privkey = openssl_pkey_new($config);
+	$csr = openssl_csr_new($dn, $privkey, $config);
+	$sscert = openssl_csr_sign($csr, null, $privkey, 730, $config, time());
+
+	openssl_x509_export($sscert, $certout);
+	openssl_pkey_export($privkey, $pkeyout);
+
+	/* sanity check */
+	if (strpos($certout, "BEGIN CERTIFICATE") !== false && strpos($pkeyout, "BEGIN RSA PRIVATE KEY") !== false)
+		return array('cert' => $certout, 'key' => $pkeyout);
+	else
+		return false;
+}
+
+/* check whether a DHCP client range is valid on an interface with a given IP address and subnet mask;
+   return an array of error strings (or an empty array on success) */
+function check_dhcp_range($if_ipaddr, $if_subnet, $range_from, $range_to) {
+	$input_errors = array();
+	$subnet_start = (ip2long($if_ipaddr) & gen_subnet_mask_long($if_subnet));
+	$subnet_end = (ip2long($if_ipaddr) | (~gen_subnet_mask_long($if_subnet)));
+	
+	$rangefrom = ip2long($range_from);
+	$rangeto = ip2long($range_to);
+	$ifip = ip2long($if_ipaddr);
+	
+	if (($rangefrom < $subnet_start) || ($rangefrom > $subnet_end) ||
+	    ($rangeto < $subnet_start) || ($rangeto > $subnet_end))
+		$input_errors[] = "The specified range lies outside of the current subnet.";
+	
+	if ($rangefrom > $rangeto)
+		$input_errors[] = "The range is invalid (start address higher than end address).";
+	
+	if (($rangefrom == $subnet_start) || ($rangeto == $subnet_end))
+		$input_errors[] = "The network address (" . long2ip($subnet_start) . ") or the broadcast address (" . long2ip($subnet_end) . ") cannot be used in the range.";
+	
+	if ($ifip >= $rangefrom && $ifip <= $rangeto)
+		$input_errors[] = "The interface's IP address cannot be included in the range.";
+	
+	return $input_errors;
+}
+
+function check_v6dhcp_range($if_ipaddr6, $if_subnet6, $v6range_from, $v6range_to) {
+	$input_errors = array();
+	$if_v6subnet = gen_subnet6($if_ipaddr6, $if_subnet6);
+	if (!isInNetmask6($v6range_from, $if_v6subnet, $if_subnet6) || !isInNetmask6($v6range_to, $if_v6subnet, $if_subnet6)) {
+		$input_errors[] = "The specified IPv6 range lies outside of the current subnet.";
+	} else {
+		$v6range_from_array = explode(":",ipv6Uncompress($v6range_from));
+		$v6range_to_array = explode(":",ipv6Uncompress($v6range_to));
+		for ($i=0; $i<=7; $i++)		{
+		  if ($v6range_from_array[$i] > $v6range_to_array[$i]) {
+				$input_errors[] = "The IPv6 range is invalid (start address higher than end address).";
+			  break;
+			} elseif ($v6range_from_array[$i] < $v6range_to_array[$i]) {
+			break;
+		  }
+		}
+	}
+	return $input_errors;
+}
+function format_bytes($bytes) {
+	if ($bytes >= 1073741824) {
+		return sprintf("%.2f GB", $bytes/1073741824);
+	} else if ($bytes >= 1048576) {
+		return sprintf("%.2f MB", $bytes/1048576);
+	} else if ($bytes >= 1024) {
+		return sprintf("%.0f KB", $bytes/1024);
+	} else {
+		return sprintf("%d bytes", $bytes);
+	}
+}
+
+/* lock a file; decide that the lock is stale after $maxwait seconds */
+function lock_file($lockfile, $maxwait = 20) {
+	$n = 0;
+	
+	while ($n < $maxwait) {
+		/* open the lock file in append mode to avoid race condition */
+		if ($fd = @fopen($lockfile, "x")) {
+			/* succeeded */
+			fclose($fd);
+			return;
+		} else {
+			/* file locked, wait and try again */
+			usleep(rand(200000,500000));
+			$n++;
+		}
+	}
+}
+
+function unlock_file($lockfile) {
+	if (file_exists($lockfile))
+		unlink($lockfile);
 }
 
 ?>

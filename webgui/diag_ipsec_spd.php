@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@ require("guiconfig.inc");
 
 /* delete any SP? */
 if ($_GET['act'] == "del") {
-	$fd = @popen("/usr/sbin/setkey -c > /dev/null 2>&1", "w");
+	$fd = @popen("/usr/local/sbin/setkey -c > /dev/null 2>&1", "w");
 	if ($fd) {
 		fwrite($fd, "spddelete {$_GET['src']} {$_GET['dst']} any -P {$_GET['dir']} ;\n");
 		pclose($fd);
@@ -59,7 +59,7 @@ if ($_GET['act'] == "del") {
 }
 
 /* query SAD */
-$fd = @popen("/usr/sbin/setkey -DP", "r");
+$fd = @popen("/usr/local/sbin/setkey -DP", "r");
 $spd = array();
 if ($fd) {
 	while (!feof($fd)) {
@@ -97,7 +97,7 @@ if ($fd) {
 }
 if (count($spd)):
 ?>
-            <table width="100%" border="0" cellpadding="0" cellspacing="0">
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" summary="inner content pane">
   <tr>
                 <td nowrap class="listhdrr">Source</td>
                 <td nowrap class="listhdrr">Destination</a></td>
@@ -118,26 +118,26 @@ foreach ($spd as $sp): ?>
 		<td class="list" nowrap>
 		<?php
 			$args = "src=" . rawurlencode($sp['src']);
-			$args .= "&dst=" . rawurlencode($sp['dst']);
-			$args .= "&dir=" . rawurlencode($sp['dir']);
+			$args .= "&amp;dst=" . rawurlencode($sp['dst']);
+			$args .= "&amp;dir=" . rawurlencode($sp['dir']);
 		?>
-		  <a href="diag_ipsec_spd.php?act=del&<?=$args;?>" onclick="return confirm('Do you really want to delete this security policy?')"><img src="x.gif" title="delete SP" width="17" height="17" border="0"></a>
+		  <a href="diag_ipsec_spd.php?act=del&amp;<?=$args;?>" onclick="return confirm('Do you really want to delete this security policy?')"><img src="x.gif" title="delete SP" width="17" height="17" border="0" alt="delete SP"></a>
 		</td>
 				
 	</tr>
 <?php endforeach; ?>
 </table>
 <br>
-<table border="0" cellspacing="0" cellpadding="0">
+<table border="0" cellspacing="0" cellpadding="0" summary="inout content pane">
   <tr> 
-	<td width="16"><img src="in.gif" width="11" height="11"></td>
+	<td width="16"><img src="in.gif" width="11" height="11" alt=""></td>
 	<td>incoming (as seen by firewall)</td>
   </tr>
   <tr> 
 	<td colspan="5" height="4"></td>
   </tr>
   <tr> 
-	<td><img src="out.gif" width="11" height="11"></td>
+	<td><img src="out.gif" width="11" height="11" alt=""></td>
 	<td>outgoing (as seen by firewall)</td>
   </tr>
 </table>

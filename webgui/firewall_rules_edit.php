@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -29,16 +29,27 @@
 	POSSIBILITY OF SUCH DAMAGE.
 */
 
-$pgtitle = array("Firewall", "Rules", "Edit");
 require("guiconfig.inc");
+
+if ($ipv6rules = ($_GET['type'] == 'ipv6')) {
+	$configname = 'rule6';
+	$typelink = '&type=ipv6';
+	$maxnetmask = 128;
+} else {
+	$configname = 'rule';
+	$typelink = '';
+	$maxnetmask = 32;
+}
+$pgtitle = array("Firewall", "Rules", "Edit");	/* make group manager happy */
+$pgtitle = array("Firewall", ipv6enabled() ? ($ipv6rules ? 'IPv6 Rules' : 'IPv4 Rules') : 'Rules', "Edit");
 
 $specialsrcdst = explode(" ", "any wanip lan pptp");
 
-if (!is_array($config['filter']['rule'])) {
-	$config['filter']['rule'] = array();
+if (!is_array($config['filter'][$configname])) {
+	$config['filter'][$configname] = array();
 }
 filter_rules_sort();
-$a_filter = &$config['filter']['rule'];
+$a_filter = &$config['filter'][$configname];
 
 $id = $_GET['id'];
 if (is_numeric($_POST['id']))
@@ -64,6 +75,7 @@ function is_specialnet($net) {
 }
 
 function address_to_pconfig($adr, &$padr, &$pmask, &$pnot, &$pbeginport, &$pendport) {
+	global $maxnetmask;
 		
 	if (isset($adr['any']))
 		$padr = "any";
@@ -72,7 +84,7 @@ function address_to_pconfig($adr, &$padr, &$pmask, &$pnot, &$pbeginport, &$pendp
 	else if ($adr['address']) {
 		list($padr, $pmask) = explode("/", $adr['address']);
 		if (!$pmask)
-			$pmask = 32;
+			$pmask = $maxnetmask;
 	}
 	
 	if (isset($adr['not']))
@@ -91,6 +103,7 @@ function address_to_pconfig($adr, &$padr, &$pmask, &$pnot, &$pbeginport, &$pendp
 }
 
 function pconfig_to_address(&$adr, $padr, $pmask, $pnot, $pbeginport, $pendport) {
+	global $maxnetmask;
 	
 	$adr = array();
 	
@@ -100,7 +113,7 @@ function pconfig_to_address(&$adr, $padr, $pmask, $pnot, $pbeginport, $pendport)
 		$adr['network'] = $padr;
 	else {
 		$adr['address'] = $padr;
-		if ($pmask != 32)
+		if ($pmask != $maxnetmask)
 			$adr['address'] .= "/" . $pmask;
 	}
 	
@@ -127,7 +140,7 @@ if (isset($id) && $a_filter[$id]) {
 	else
 		$pconfig['proto'] = "any";
 	
-	if ($a_filter[$id]['protocol'] == "icmp")
+	if ($a_filter[$id]['protocol'] == "icmp" || $a_filter[$id]['protocol'] == "ipv6-icmp")
 		$pconfig['icmptype'] = $a_filter[$id]['icmptype'];
 	
 	address_to_pconfig($a_filter[$id]['source'], $pconfig['src'],
@@ -199,13 +212,13 @@ if ($_POST) {
 		$_POST['src'] = $_POST['srctype'];
 		$_POST['srcmask'] = 0;
 	} else if ($_POST['srctype'] == "single") {
-		$_POST['srcmask'] = 32;
+		$_POST['srcmask'] = $maxnetmask;
 	}
 	if (is_specialnet($_POST['dsttype'])) {
 		$_POST['dst'] = $_POST['dsttype'];
 		$_POST['dstmask'] = 0;
 	}  else if ($_POST['dsttype'] == "single") {
-		$_POST['dstmask'] = 32;
+		$_POST['dstmask'] = $maxnetmask;
 	}
 	
 	unset($input_errors);
@@ -253,7 +266,7 @@ if ($_POST) {
 	}
 	
 	if (!is_specialnet($_POST['srctype'])) {
-		if (($_POST['src'] && !is_ipaddroranyalias($_POST['src']))) {
+		if ($_POST['src'] && !($ipv6rules ? is_ipaddr6($_POST['src']) : is_ipaddroranyalias($_POST['src']))) {
 			$input_errors[] = "A valid source IP address or alias must be specified.";
 		}
 		if (($_POST['srcmask'] && !is_numericint($_POST['srcmask']))) {
@@ -261,7 +274,7 @@ if ($_POST) {
 		}
 	}
 	if (!is_specialnet($_POST['dsttype'])) {
-		if (($_POST['dst'] && !is_ipaddroranyalias($_POST['dst']))) {
+		if ($_POST['dst'] && !($ipv6rules ? is_ipaddr6($_POST['dst']) : is_ipaddroranyalias($_POST['dst']))) {
 			$input_errors[] = "A valid destination IP address or alias must be specified.";
 		}
 		if (($_POST['dstmask'] && !is_numericint($_POST['dstmask']))) {
@@ -292,7 +305,7 @@ if ($_POST) {
 		else
 			unset($filterent['protocol']);
 	
-		if ($_POST['proto'] == "icmp" && $_POST['icmptype'])
+		if (($_POST['proto'] == "icmp" || $_POST['proto'] == "ipv6-icmp") && $_POST['icmptype'])
 			$filterent['icmptype'] = $_POST['icmptype'];
 		else
 			unset($filterent['icmptype']);
@@ -322,13 +335,13 @@ if ($_POST) {
 		write_config();
 		touch($d_filterconfdirty_path);
 		
-		header("Location: firewall_rules.php?if=" . $_POST['interface']);
+		header("Location: firewall_rules.php?if=" . $_POST['interface'] . $typelink);
 		exit;
 	}
 }
 ?>
 <?php include("fbegin.inc"); ?>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 var portsenabled = 1;
 
@@ -409,13 +422,10 @@ function typesel_change() {
 }
 
 function proto_change() {
-	if (document.iform.proto.selectedIndex < 3) {
-		portsenabled = 1;
-	} else {
-		portsenabled = 0;
-	}
-	
-	if (document.iform.proto.selectedIndex == 3) {
+	var o = document.iform.proto;
+	portsenabled = (o.selectedIndex < 3);
+
+	if (o.selectedIndex == 3) {
 		document.iform.icmptype.disabled = 0;
 	} else {
 		document.iform.icmptype.disabled = 1;
@@ -433,8 +443,8 @@ function dst_rep_change() {
 //-->
 </script>
 <?php if ($input_errors) print_input_errors($input_errors); ?>
-            <form action="firewall_rules_edit.php" method="post" name="iform" id="iform">
-              <table width="100%" border="0" cellpadding="6" cellspacing="0">
+            <form action="firewall_rules_edit.php<?=($typelink?'?' . $typelink:'')?>" method="post" name="iform" id="iform">
+              <table width="100%" border="0" cellpadding="6" cellspacing="0" summary="content pane">
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">Action</td>
                   <td width="78%" class="vtable">
@@ -461,7 +471,11 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                   <td width="22%" valign="top" class="vncellreq">Interface</td>
                   <td width="78%" class="vtable">
 					<select name="interface" class="formfld">
-                      <?php $interfaces = array('wan' => 'WAN', 'lan' => 'LAN', 'pptp' => 'PPTP');
+                      <?php
+					  if ($ipv6rules)
+					      $interfaces = array('wan' => 'WAN', 'lan' => 'LAN');
+					  else
+					      $interfaces = array('wan' => 'WAN', 'lan' => 'LAN', 'pptp' => 'PPTP', 'ipsec' => 'IPsec');
 					  for ($i = 1; isset($config['interfaces']['opt' . $i]); $i++) {
 					  	$interfaces['opt' . $i] = $config['interfaces']['opt' . $i]['descr'];
 					  }
@@ -477,12 +491,15 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                 <tr> 
                   <td width="22%" valign="top" class="vncellreq">Protocol</td>
                   <td width="78%" class="vtable">
-					<select name="proto" class="formfld" onchange="proto_change()">
-                      <?php $protocols = explode(" ", "TCP UDP TCP/UDP ICMP ESP AH GRE IPv6 IGMP any"); foreach ($protocols as $proto): ?>
-                      <option value="<?=strtolower($proto);?>" <?php if (strtolower($proto) == $pconfig['proto']) echo "selected"; ?>>
-                      <?=htmlspecialchars($proto);?>
-                      </option>
-                      <?php endforeach; ?>
+                    <select name="proto" class="formfld" onchange="proto_change()">
+                        <?php
+                        $protocols = explode(' ', 'TCP UDP TCP/UDP ' .
+                            (!$ipv6rules ? 'ICMP IPv6 IGMP' : 'IPv6-ICMP IPv6-NONXT IPv6-OPTS IPv6-ROUTE IPv6-FRAG') .
+                            ' ESP AH GRE any');
+                        foreach ($protocols as $proto): ?>
+                            <option value="<?=strtolower($proto);?>" <?php if (strtolower($proto) == $pconfig['proto'])
+                            echo "selected"; ?>><?=htmlspecialchars($proto);?></option>
+                        <?php endforeach; ?>
                     </select> <br>
                     <span class="vexpl">Choose which IP protocol this rule should 
                     match.<br>
@@ -494,22 +511,42 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                     <select name="icmptype" class="formfld">
                       <?php
 					  
-					  $icmptypes = array(
-					  	"" => "any",
-					  	"unreach" => "Destination unreachable",
-						"echo" => "Echo",
-						"echorep" => "Echo reply",
-						"squench" => "Source quench",
-						"redir" => "Redirect",
-						"timex" => "Time exceeded",
-						"paramprob" => "Parameter problem",
-						"timest" => "Timestamp",
-						"timestrep" => "Timestamp reply",
-						"inforeq" => "Information request",
-						"inforep" => "Information reply",
-						"maskreq" => "Address mask request",
-						"maskrep" => "Address mask reply"
-					  );
+					  if (!$ipv6rules) {
+                          $icmptypes = array(
+                            "" => "any",
+                            "unreach" => "Destination unreachable",
+                            "echo" => "Echo",
+                            "echorep" => "Echo reply",
+                            "squench" => "Source quench",
+                            "redir" => "Redirect",
+                            "timex" => "Time exceeded",
+                            "paramprob" => "Parameter problem",
+                            "timest" => "Timestamp",
+                            "timestrep" => "Timestamp reply",
+                            "inforeq" => "Information request",
+                            "inforep" => "Information reply",
+                            "maskreq" => "Address mask request",
+                            "maskrep" => "Address mask reply"
+                          );
+                      } else {
+                          $icmptypes = array(
+                            '' => 'any',
+                            1 => 'Destination Unreachable',
+                            2 => 'Packet Too Big',
+                            3 => 'Time Exceeded',
+                            4 => 'Parameter Problem',
+                            128 => 'Echo Request',
+                            129 => 'Echo Reply',
+                            130 => 'Multicast Listener Query',
+                            131 => 'Multicast Listener Report',
+                            132 => 'Multicast Listener Done',
+                            133 => 'Router Solicitation',
+                            134 => 'Router Advertisement',
+                            135 => 'Neighbor Solicitation',
+                            136 => 'Neighbor Advertisement',
+                            137 => 'Redirect Message'
+                          );
+                      }
 					  
 					  foreach ($icmptypes as $icmptype => $descr): ?>
                       <option value="<?=$icmptype;?>" <?php if ($icmptype == $pconfig['icmptype']) echo "selected"; ?>>
@@ -527,7 +564,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                     <strong>not</strong><br>
                     Use this option to invert the sense of the match.<br>
                     <br>
-                    <table border="0" cellspacing="0" cellpadding="0">
+                    <table border="0" cellspacing="0" cellpadding="0" summary="type-address widget">
                       <tr> 
                         <td>Type:&nbsp;&nbsp;</td>
 						<td></td>
@@ -535,7 +572,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
 							<?php $sel = is_specialnet($pconfig['src']); ?>
                             <option value="any" <?php if ($pconfig['src'] == "any") { echo "selected"; } ?>>
                             any</option>
-                            <option value="single" <?php if (($pconfig['srcmask'] == 32) && !$sel) { echo "selected"; $sel = 1; } ?>>
+                            <option value="single" <?php if (($pconfig['srcmask'] == $maxnetmask) && !$sel) { echo "selected"; $sel = 1; } ?>>
                             Single host or alias</option>
                             <option value="network" <?php if (!$sel) echo "selected"; ?>>
                             Network</option>
@@ -543,8 +580,10 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                             WAN address</option>
                             <option value="lan" <?php if ($pconfig['src'] == "lan") { echo "selected"; } ?>>
                             LAN subnet</option>
+							<?php if (!$ipv6rules): ?>
                             <option value="pptp" <?php if ($pconfig['src'] == "pptp") { echo "selected"; } ?>>
                             PPTP clients</option>
+							<?php endif; ?>
 							<?php for ($i = 1; isset($config['interfaces']['opt' . $i]); $i++): ?>
                             <option value="opt<?=$i;?>" <?php if ($pconfig['src'] == "opt" . $i) { echo "selected"; } ?>>
                             <?=htmlspecialchars($config['interfaces']['opt' . $i]['descr']);?> subnet</option>
@@ -554,10 +593,10 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                       <tr> 
                         <td>Address:&nbsp;&nbsp;</td>
 						<td><?=$mandfldhtmlspc;?></td>
-                        <td><input name="src" type="text" class="formfldalias" id="src" size="20" value="<?php if (!is_specialnet($pconfig['src'])) echo htmlspecialchars($pconfig['src']);?>">
+                        <td><input name="src" type="text" class="<?=($ipv6rules ? 'formfld' : 'formfldalias')?>" id="src" size="20" value="<?php if (!is_specialnet($pconfig['src'])) echo htmlspecialchars($pconfig['src']);?>">
                         /
 						<select name="srcmask" class="formfld" id="srcmask">
-						<?php for ($i = 31; $i > 0; $i--): ?>
+						<?php for ($i = ($maxnetmask - 1); $i > 0; $i--): ?>
 						<option value="<?=$i;?>" <?php if ($i == $pconfig['srcmask']) echo "selected"; ?>><?=$i;?></option>
 						<?php endfor; ?>
 						</select>
@@ -569,7 +608,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                   <td width="22%" valign="top" class="vncellreq">Source port range 
                   </td>
                   <td width="78%" class="vtable"> 
-                    <table border="0" cellspacing="0" cellpadding="0">
+                    <table border="0" cellspacing="0" cellpadding="0" summary="from-to widget">
                       <tr> 
                         <td>from:&nbsp;&nbsp;</td>
                         <td><select name="srcbeginport" class="formfld" onchange="src_rep_change();ext_change()">
@@ -613,7 +652,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                     <strong>not</strong><br>
                     Use this option to invert the sense of the match.<br>
                     <br>
-                    <table border="0" cellspacing="0" cellpadding="0">
+                    <table border="0" cellspacing="0" cellpadding="0" summary="type-address widget">
                       <tr> 
                         <td>Type:&nbsp;&nbsp;</td>
 						<td></td>
@@ -621,7 +660,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                             <?php $sel = is_specialnet($pconfig['dst']); ?>
                             <option value="any" <?php if ($pconfig['dst'] == "any") { echo "selected"; } ?>>
                             any</option>
-                            <option value="single" <?php if (($pconfig['dstmask'] == 32) && !$sel) { echo "selected"; $sel = 1; } ?>>
+                            <option value="single" <?php if (($pconfig['dstmask'] == $maxnetmask) && !$sel) { echo "selected"; $sel = 1; } ?>>
                             Single host or alias</option>
                             <option value="network" <?php if (!$sel) echo "selected"; ?>>
                             Network</option>
@@ -629,8 +668,10 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                             WAN address</option>
                             <option value="lan" <?php if ($pconfig['dst'] == "lan") { echo "selected"; } ?>>
                             LAN subnet</option>
+							<?php if (!$ipv6rules): ?>
                             <option value="pptp" <?php if ($pconfig['dst'] == "pptp") { echo "selected"; } ?>>
                             PPTP clients</option>
+							<?php endif; ?>
 							<?php for ($i = 1; isset($config['interfaces']['opt' . $i]); $i++): ?>
                             <option value="opt<?=$i;?>" <?php if ($pconfig['dst'] == "opt" . $i) { echo "selected"; } ?>>
                             <?=htmlspecialchars($config['interfaces']['opt' . $i]['descr']);?> subnet</option>
@@ -640,10 +681,10 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                       <tr> 
                         <td>Address:&nbsp;&nbsp;</td>
 						<td><?=$mandfldhtmlspc;?></td>
-                        <td><input name="dst" type="text" class="formfldalias" id="dst" size="20" value="<?php if (!is_specialnet($pconfig['dst'])) echo htmlspecialchars($pconfig['dst']);?>">
+                        <td><input name="dst" type="text" class="<?=($ipv6rules ? 'formfld' : 'formfldalias')?>" id="dst" size="20" value="<?php if (!is_specialnet($pconfig['dst'])) echo htmlspecialchars($pconfig['dst']);?>">
                           / 
                           <select name="dstmask" class="formfld" id="dstmask">
-						<?php for ($i = 31; $i > 0; $i--): ?>
+						<?php for ($i = ($maxnetmask - 1); $i > 0; $i--): ?>
 						<option value="<?=$i;?>" <?php if ($i == $pconfig['dstmask']) echo "selected"; ?>><?=$i;?></option>
 						<?php endfor; ?>
 						</select></td>
@@ -654,7 +695,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                   <td width="22%" valign="top" class="vncellreq">Destination port 
                     range </td>
                   <td width="78%" class="vtable"> 
-                    <table border="0" cellspacing="0" cellpadding="0">
+                    <table border="0" cellspacing="0" cellpadding="0" summary="from-to widget">
                       <tr> 
                         <td>from:&nbsp;&nbsp;</td>
                         <td><select name="dstbeginport" class="formfld" onchange="dst_rep_change();ext_change()">
@@ -731,7 +772,7 @@ Hint: the difference between block and reject is that with reject, a packet (TCP
                 </tr>
               </table>
 </form>
-<script language="JavaScript">
+<script type="text/javascript">
 <!--
 ext_change();
 typesel_change();
