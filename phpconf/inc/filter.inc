@@ -56,7 +56,12 @@ function filter_configure() {
 	mwexec("/sbin/sysctl net.inet.ipf.fr_tcpidletimeout={$tcpidletimeout}");
 	mwexec("/sbin/sysctl net.inet.ipf.fr_tcphalfclosed=480");
 	mwexec("/sbin/sysctl net.inet.ipf.fr_udpacktimeout=480");	/* SIP... */
-	
+
+	/* set portrange sysctls - m0n0wall doesn't need many ports for itself, and we'd rather
+	   let ipnat have the rest for better source port randomization */
+	mwexec("/sbin/sysctl net.inet.ip.portrange.first=64536");
+	mwexec("/sbin/sysctl net.inet.ip.portrange.hifirst=64536");	
+
 	/* generate ipnat rules */
 	$ipnatrules = filter_nat_rules_generate();
 	
@@ -114,6 +119,7 @@ function filter_flush_state_table() {
 }
 
 function filter_nat_rules_generate_if($if, $src, $dst, $target, $portmap = true) {
+	global $config;
 
 	if ($target)
 		$tgt = $target . "/32";
@@ -122,8 +128,17 @@ function filter_nat_rules_generate_if($if, $src, $dst, $target, $portmap = true)
 	
 	$natrule = "map $if $src $dst -> {$tgt} proxy port ftp ftp/tcp\n";
 	
-	if ($portmap)
-		$natrule .= "map $if $src $dst -> {$tgt} portmap tcp/udp auto\n";
+	if ($portmap) {
+		$rangelow = 1024;
+		$rangehigh = 64535;
+		
+		if ($config['nat']['portrange-low'] && $config['nat']['portrange-high']) {
+			$rangelow = $config['nat']['portrange-low'];
+			$rangehigh = $config['nat']['portrange-high'];
+		}
+		
+		$natrule .= "map $if $src $dst -> {$tgt} portmap tcp/udp $rangelow:$rangehigh\n";
+	}
 	
 	$natrule .= "map $if $src $dst -> {$tgt}\n";
 	
@@ -222,6 +237,18 @@ function filter_nat_rules_generate() {
 	if (isset($config['diag']['ipv6nat']['enable'])) {
 		$natrules .= "rdr $wanif 0/0 port 0 -> " . 
 		"{$config['diag']['ipv6nat']['ipaddr']} port 0 ipv6\n";
+	}
+	
+	/* if the DNS forwarder is enabled, we need to add a map rule for outgoing
+	   DNS queries (source IP = WAN, destination port = 53). Otherwise, since 
+	   Dnsmasq now picks port at random, they could clash with inbound mappings,
+	   leading to sporadic query timeouts. The map rule (without portmap) ensures
+	   that an entry in the NAT table is generated and prevents rdr rules from
+	   taking effect. */
+	if (isset($config['dnsmasq']['enable'])) {
+		$curwanip = get_current_wan_address();
+		if ($curwanip)
+			$natrules .= "map $wanif from $curwanip/32 to any port = 53 -> 0.0.0.0/32\n";
 	}
 	
 	if (isset($config['nat']['rule'])) {

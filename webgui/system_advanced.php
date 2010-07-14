@@ -49,6 +49,9 @@ $pconfig['tcpidletimeout'] = $config['filter']['tcpidletimeout'];
 $pconfig['preferoldsa_enable'] = isset($config['ipsec']['preferoldsa']);
 $pconfig['polling_enable'] = isset($config['system']['polling']);
 $pconfig['ipfstatentries'] = $config['diag']['ipfstatentries'];
+$pconfig['watchdog'] = isset($config['system']['watchdog']);
+$pconfig['portrangelow'] = $config['nat']['portrange-low'];
+$pconfig['portrangehigh'] = $config['nat']['portrange-high'];
 
 if ($_POST) {
 
@@ -73,6 +76,9 @@ if ($_POST) {
 		if (!strstr($_POST['key'], "BEGIN RSA PRIVATE KEY") || !strstr($_POST['key'], "END RSA PRIVATE KEY"))
 			$input_errors[] = "This key does not appear to be valid.";
 	}
+	if (($_POST['portrangelow'] || $_POST['portrangehigh']) &&
+		(!is_port($_POST['portrangelow']) || !is_port($_POST['portrangehigh'])))
+		$input_errors[] = "The outbound NAT port range start and end must be integers between 1 and 65535.";
 
 	if (!$input_errors) {
 		$config['bridge']['filteringbridge'] = $_POST['filteringbridge_enable'] ? true : false;
@@ -100,6 +106,9 @@ if ($_POST) {
 			unset($config['diag']['ipfstatentries']);
 		else
 			$config['diag']['ipfstatentries'] = $_POST['ipfstatentries'];	
+		$config['system']['watchdog'] = $_POST['watchdog'] ? true : false;
+		$config['nat']['portrange-low'] = $_POST['portrangelow'];
+		$config['nat']['portrange-high'] = $_POST['portrangehigh'];
 		
 		write_config();
 		
@@ -126,6 +135,7 @@ if ($_POST) {
 				$retval |= vpn_ipsec_configure();
 			$retval |= system_polling_configure();
 			$retval |= system_set_termcap();
+			$retval |= system_watchdog_configure();
 			config_unlock();
 		}
 		$savemsg = get_std_save_message($retval);
@@ -231,6 +241,16 @@ function enable_change(enable_over) {
                     <strong>Disable console menu</strong><span class="vexpl"><br>
                     Changes to this option will take effect after a reboot.</span></td>
                 </tr>
+<?php if ($g['platform'] == "wrap"): ?>
+				<tr> 
+                  <td width="22%" valign="top" class="vncell">Watchdog</td>
+                  <td width="78%" class="vtable"> 
+                    <input name="watchdog" type="checkbox" id="watchdog" value="yes" <?php if ($pconfig['watchdog']) echo "checked"; ?>>
+                    <strong>Enable hardware watchdog</strong><span class="vexpl"><br>
+                    If the hardware watchdog is enabled, it will reset the CPU after a few seconds if the system software
+                    has stopped responding.</span></td>
+                </tr>
+<?php endif; ?>
 				<tr>
                   <td valign="top" class="vncell">Firmware version check </td>
                   <td class="vtable">
@@ -251,6 +271,14 @@ function enable_change(enable_over) {
                     <input name="tcpidletimeout" type="text" class="formfld" id="tcpidletimeout" size="8" value="<?=htmlspecialchars($pconfig['tcpidletimeout']);?>">
                     seconds<br>
     Idle TCP connections will be removed from the state table after no packets have been received for the specified number of seconds. Don't set this too high or your state table could become full of connections that have been improperly shut down. The default is 2.5 hours.</span></td>
+			    </tr>
+				<tr>
+                  <td valign="top" class="vncell">Outbound NAT port range</td>
+                  <td class="vtable"><span class="vexpl">
+                    <input name="portrangelow" type="text" class="formfld" id="portrangelow" size="5" value="<?=htmlspecialchars($pconfig['portrangelow']);?>"> - 
+					<input name="portrangehigh" type="text" class="formfld" id="portrangehigh" size="5" value="<?=htmlspecialchars($pconfig['portrangehigh']);?>">
+                    <br>
+    This setting controls the range from which ports are randomly picked for outbound NAT. Do not change this unless you know exactly what you're doing.</span></td>
 			    </tr>
 <?php if ($g['platform'] == "generic-pc"): ?>
 				<tr> 

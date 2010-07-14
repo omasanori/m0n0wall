@@ -4,7 +4,8 @@
     $Id$
     part of m0n0wall (http://m0n0.ch/wall)
     
-    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+    Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>
+    and (C) 2006-2007 Jonathan De Graeve <m0n0wall@esstec.be>.
     All rights reserved.
     
     Redistribution and use in source and binary forms, with or without
@@ -78,7 +79,7 @@ if (!$clientmac && $macfilter) {
 }
 
 /* find out if we need RADIUS + RADIUSMAC or not */
-if (file_exists("{$g['vardb_path']}/captiveportal_radius.db")) {
+if (isset($config['captiveportal']['radiusip']) && ($config['captiveportal']['auth_method'] == "radius")) {
     $radius_enable = TRUE;
     if ($radius_enable && isset($config['captiveportal']['radmac_enable']))
         $radmac_enable = TRUE;
@@ -197,27 +198,6 @@ function portal_reply_page($redirurl, $type = null, $message = null) {
     echo $htmltext;
 }
 
-function portal_mac_fixed($clientmac) {
-    global $g ;
-
-    /* open captive portal mac db */
-    if (file_exists("{$g['vardb_path']}/captiveportal_mac.db")) {
-        $fd = @fopen("{$g['vardb_path']}/captiveportal_mac.db","r") ;
-        if (!$fd) {
-            return FALSE;
-        }
-        while (!feof($fd)) {
-            $mac = trim(fgets($fd)) ;
-            if(strcasecmp($clientmac, $mac) == 0) {
-                fclose($fd) ;
-                return TRUE ;
-            }
-        }
-        fclose($fd) ;
-    }
-    return FALSE ;
-}
-
 function portal_mac_radius($clientmac,$clientip) {
     global $config ;
 
@@ -268,7 +248,7 @@ function portal_allow($clientip,$clientmac,$username,$password = null, $attribut
         }
         elseif ((isset($config['captiveportal']['noconcurrentlogins'])) && ($username != 'unauthenticated')) {
             /* on the same username */
-            if ($cpdb[$i][4] == $username) {
+            if (strcasecmp($cpdb[$i][4], $username) == 0) {
                 /* This user was already logged in so we disconnect the old one */
                 captiveportal_disconnect($cpdb[$i],$radiusservers,13);
                 captiveportal_logportalauth($cpdb[$i][4],$cpdb[$i][3],$cpdb[$i][2],"CONCURRENT LOGIN - TERMINATING OLD SESSION");
