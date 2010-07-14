@@ -1,6 +1,6 @@
---- usr.sbin/syslogd/syslogd.c.orig	Tue Jun 29 12:07:35 2004
-+++ usr.sbin/syslogd/syslogd.c	Sun Apr 24 05:59:35 2005
-@@ -69,6 +69,7 @@
+--- usr.sbin/syslogd/syslogd.c.orig	Sun Jan 15 18:50:37 2006
++++ usr.sbin/syslogd/syslogd.c	Sat Nov 18 20:22:32 2006
+@@ -66,6 +66,7 @@
   *   by Peter da Silva.
   * -u and -v by Harlan Stenn.
   * Priority comparison code by Harlan Stenn.
@@ -8,7 +8,7 @@
   */
  
  #define	MAXLINE		1024		/* maximum line length */
-@@ -89,6 +90,7 @@
+@@ -86,6 +87,7 @@
  #include <sys/time.h>
  #include <sys/resource.h>
  #include <sys/syslimits.h>
@@ -16,35 +16,35 @@
  #include <sys/types.h>
  
  #include <netinet/in.h>
-@@ -111,6 +113,7 @@
- #include <utmp.h>
+@@ -109,6 +111,7 @@
  
  #include "pathnames.h"
-+#include "../clog/clog.h"
  #include "ttymsg.h"
++#include "../clog/clog.h"
  
  #define SYSLOG_NAMES
-@@ -125,6 +128,7 @@
+ #include <sys/syslog.h>
+@@ -116,6 +119,7 @@
  const char	*ConfFile = _PATH_LOGCONF;
  const char	*PidFile = _PATH_LOGPID;
  const char	ctty[] = _PATH_CONSOLE;
-+const char  ring_magic[] = "CLOG";
++const char	ring_magic[] = "CLOG";
  
  #define	dprintf		if (Debug) printf
  
-@@ -177,6 +181,11 @@
+@@ -181,6 +185,11 @@
  			char	f_pname[MAXPATHLEN];
  			pid_t	f_pid;
  		} f_pipe;
 +		struct {
-+		  char		f_rname[MAXPATHLEN];
++			char	f_rname[MAXPATHLEN];
 +			struct clog_footer *f_footer;
 +			size_t	f_size;
 +		} f_ring;
  	} f_un;
  	char	f_prevline[MAXSVLINE];		/* last message logged */
  	char	f_lasttime[16];			/* time of last occurrence */
-@@ -254,10 +263,12 @@
+@@ -259,10 +268,12 @@
  #define F_USERS		5		/* list of users */
  #define F_WALL		6		/* everyone logged on */
  #define F_PIPE		7		/* pipe to program */
@@ -59,20 +59,19 @@
  };
  
  static struct filed *Files;	/* Log files that we write to */
-@@ -314,6 +325,8 @@
+@@ -323,6 +334,8 @@
  static void	printline(const char *, char *);
  static void	printsys(char *);
  static int	p_open(const char *, pid_t *);
-+ssize_t		rbwrite(struct filed *, char *, size_t);
-+ssize_t		rbwritev(struct filed *, struct iovec *, int);
++static ssize_t	rbwrite(struct filed *, char *, size_t);
++static ssize_t	rbwritev(struct filed *, struct iovec *, int);
  static void	readklog(void);
  static void	reapchild(int);
  static void	usage(void);
-@@ -1150,6 +1163,20 @@
- 		} else if ((flags & SYNC_FILE) && (f->f_flags & FFLAG_SYNC))
- 			(void)fsync(f->f_file);
+@@ -1233,6 +1246,21 @@
+ 		}
  		break;
-+		
+ 
 +	case F_RING:
 +		dprintf(" %s\n", f->f_un.f_ring.f_rname);
 +		v->iov_base = "\n";
@@ -85,11 +84,13 @@
 +			errno = e;
 +			logerror(f->f_un.f_fname);
 +		}
++
 +		break;
- 
++
  	case F_PIPE:
  		dprintf(" %s\n", f->f_un.f_pipe.f_pname);
-@@ -1463,6 +1490,10 @@
+ 		v->iov_base = lf;
+@@ -1545,6 +1573,10 @@
  			}
  			f->f_un.f_pipe.f_pid = 0;
  			break;
@@ -100,18 +101,18 @@
  		}
  		next = f->f_next;
  		if (f->f_program) free(f->f_program);
-@@ -1584,6 +1615,10 @@
- 			case F_FORW:
+@@ -1667,6 +1699,10 @@
  				printf("%s", f->f_un.f_forw.f_hname);
  				break;
-+				
+ 
 +			case F_RING:
 +				printf("%s", f->f_un.f_ring.f_rname);
 +				break;
- 
++
  			case F_PIPE:
  				printf("%s", f->f_un.f_pipe.f_pname);
-@@ -1625,6 +1660,7 @@
+ 				break;
+@@ -1717,6 +1753,7 @@
  	const char *p, *q;
  	char *bp;
  	char buf[MAXLINE], ebuf[100];
@@ -119,17 +120,16 @@
  
  	dprintf("cfline(\"%s\", f, \"%s\", \"%s\")\n", line, prog, host);
  
-@@ -1812,6 +1848,38 @@
- 			f->f_type = F_FILE;
+@@ -1905,6 +1942,38 @@
  		}
  		break;
-+			
+ 
 +	case '%':
 +		if ((f->f_file = open(p+1, O_RDWR, 0 )) < 0) {
 +			f->f_type = F_UNUSED;
 +			logerror(p+1);
 +			break;
-+ 		}
++		}
 +		if (fstat(f->f_file,&sb)<0) {
 +			(void)close(f->f_file);
 +			f->f_type = F_UNUSED;
@@ -155,19 +155,20 @@
 +		(void)strcpy(f->f_un.f_ring.f_rname, p + 1);
 +		f->f_type = F_RING;
 +		break;
- 
++
  	case '|':
  		f->f_un.f_pipe.f_pid = 0;
-@@ -2500,4 +2568,46 @@
- 		freeaddrinfo(res);
- 
- 	return (socks);
+ 		(void)strlcpy(f->f_un.f_fname, p + 1, sizeof(f->f_un.f_fname));
+@@ -2607,4 +2676,46 @@
+ 		len *= 2;
+ 		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &len, slen);
+ 	}
 +}
 +
-+ssize_t rbwritev(struct filed *f, struct iovec *iov, int iovcnt) {
++static ssize_t rbwritev(struct filed *f, struct iovec *iov, int iovcnt) {
 +	int i;
 +	ssize_t out = 0;
-+	ssize_t err;
++ 	ssize_t err;
 +
 +	for(i=0;i<iovcnt;i++) {
 +		err = rbwrite(f,iov[i].iov_base,iov[i].iov_len);
@@ -177,7 +178,7 @@
 +	return out;
 +}
 +
-+ssize_t rbwrite(struct filed *f, char *buf, size_t nbytes) {
++static ssize_t rbwrite(struct filed *f, char *buf, size_t nbytes) {
 +	size_t maxwrite = f->f_un.f_ring.f_footer->cf_max - f->f_un.f_ring.f_footer->cf_next;
 +	ssize_t err;
 +	ssize_t out = 0;

@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@ function dump_clog($logfile, $tail) {
 
 ?>
 <?php include("fbegin.inc"); ?>
-<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" summary="tab pane">
   <tr><td class="tabnavtbl">
   <ul id="tabnav">
 <?php 
@@ -77,7 +77,7 @@ function dump_clog($logfile, $tail) {
   </td></tr>
   <tr> 
     <td class="tabcont">
-		<table width="100%" border="0" cellspacing="0" cellpadding="0">
+		<table width="100%" border="0" cellspacing="0" cellpadding="0" summary="content pane">
 		  <tr> 
 			<td colspan="2" class="listtopic"> 
 			  Last <?=$nentries;?> captive portal log entries</td>

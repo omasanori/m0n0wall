@@ -4,7 +4,7 @@
 	$Id$
 	part of m0n0wall (http://m0n0.ch/wall)
 	
-	Copyright (C) 2003-2006 Manuel Kasper <mk@neon1.net>.
+	Copyright (C) 2003-2007 Manuel Kasper <mk@neon1.net>.
 	All rights reserved.
 	
 	Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@ require("guiconfig.inc");
 
 /* delete any SA? */
 if ($_GET['act'] == "del") {
-	$fd = @popen("/usr/sbin/setkey -c > /dev/null 2>&1", "w");
+	$fd = @popen("/usr/local/sbin/setkey -c > /dev/null 2>&1", "w");
 	if ($fd) {
 		fwrite($fd, "delete {$_GET['src']} {$_GET['dst']} {$_GET['proto']} {$_GET['spi']} ;\n");
 		pclose($fd);
@@ -59,7 +59,7 @@ if ($_GET['act'] == "del") {
 }
 
 /* query SAD */
-$fd = @popen("/usr/sbin/setkey -D", "r");
+$fd = @popen("/usr/local/sbin/setkey -D", "r");
 $sad = array();
 if ($fd) {
 	while (!feof($fd)) {
@@ -93,7 +93,7 @@ if ($fd) {
 }
 if (count($sad)):
 ?>
-            <table width="100%" border="0" cellpadding="0" cellspacing="0">
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" summary="inner content pane">
   <tr>
                 <td nowrap class="listhdrr">Source</td>
                 <td nowrap class="listhdrr">Destination</a></td>
@@ -115,11 +115,11 @@ foreach ($sad as $sa): ?>
 		<td class="list" nowrap>
 		<?php
 			$args = "src=" . rawurlencode($sa['src']);
-			$args .= "&dst=" . rawurlencode($sa['dst']);
-			$args .= "&proto=" . rawurlencode($sa['proto']);
-			$args .= "&spi=" . rawurlencode("0x" . $sa['spi']);
+			$args .= "&amp;dst=" . rawurlencode($sa['dst']);
+			$args .= "&amp;proto=" . rawurlencode($sa['proto']);
+			$args .= "&amp;spi=" . rawurlencode("0x" . $sa['spi']);
 		?>
-		  <a href="diag_ipsec_sad.php?act=del&<?=$args;?>" onclick="return confirm('Do you really want to delete this security association?')"><img src="x.gif" title="delete SA" width="17" height="17" border="0"></a>
+		  <a href="diag_ipsec_sad.php?act=del&amp;<?=$args;?>" onclick="return confirm('Do you really want to delete this security association?')"><img src="x.gif" title="delete SA" width="17" height="17" border="0" alt="delete SA"></a>
 		</td>
 				
 	</tr>
