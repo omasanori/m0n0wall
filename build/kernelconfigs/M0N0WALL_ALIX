@@ -1,9 +1,7 @@
-# $Id$
 
 machine		i386
 cpu 		I586_CPU
-options		CPU_GEODE		#Adds LED and HW watchdog support
-ident		M0N0WALL_WRAP
+ident		M0N0WALL_ALIX
 maxusers	0
 options		INCLUDE_CONFIG_FILE
 
@@ -51,7 +49,6 @@ device		pci
 device		ata
 device		atadisk			# ATA disk drives
 options 	ATA_STATIC_ID		#Static device numbering
-options		ATA_DISABLE_SLAVE
 
 # Floating point support - do not disable.
 device		npx0	at nexus? port IO_NPX irq 13
@@ -68,7 +65,7 @@ device		sio3	at isa? disable port IO_COM4 irq 9
 # PCI Ethernet NICs that use the common MII bus controller code.
 # NOTE: Be sure to keep the 'device miibus' line in order to use these NICs!
 device		miibus		# MII bus support
-device		sis		# Silicon Integrated Systems SiS 900/SiS 7016
+device		vr		# VIA Rhine, Rhine II
 
 # WaveLAN/IEEE 802.11 wireless NICs. Note: the WaveLAN/IEEE really
 # exists only as a PCMCIA device, so there is no ISA attachment needed
@@ -93,6 +90,19 @@ pseudo-device	gif		# IPv6 and IPv4 tunneling
 # The `bpf' pseudo-device enables the Berkeley Packet Filter.
 # Be aware of the administrative consequences of enabling this!
 pseudo-device	bpf		#Berkeley packet filter
+
+# USB support
+device		uhci		# UHCI PCI->USB interface
+device		ohci		# OHCI PCI->USB interface
+device		usb		# USB Bus (required)
+device		ugen		# Generic
+device		uhid		# "Human Interface Devices"
+device		ukbd		# Keyboard
+# USB Ethernet, requires mii
+device		aue		# ADMtek USB ethernet
+device		cue		# CATC USB ethernet
+device		kue		# Kawasaki LSI USB ethernet
+device		rue
 
 options 	NETGRAPH		#netgraph(4) system
 options 	NETGRAPH_ASYNC
