@@ -375,7 +375,7 @@ function services_dnsmasq_configure() {
 		
 		if (isset($config['dnsmasq']['domainoverrides']) && is_array($config['dnsmasq']['domainoverrides'])) {
 			foreach($config['dnsmasq']['domainoverrides'] as $override) {
-				$args .= " " . escapeshellarg('--server=/' . $override['domain'] . '/' . $override['ip']);
+				$args .= " -S " . escapeshellarg('/' . $override['domain'] . '/' . $override['ip']);
 			}
 		}
 
@@ -388,6 +388,7 @@ function services_dnsmasq_configure() {
 	
 	if (!$g['booting']) {
 		services_dhcpd_configure();
+		filter_configure();
 	}
 
 	return 0;
@@ -410,8 +411,14 @@ function services_snmpd_configure() {
 			printf("Error: cannot open snmpd.conf in services_snmpd_configure().\n");
 			return 1;
 		}
-			
+
+		$version = chop(file_get_contents("{$g['etc_path']}/version"));
+		$sysDescr = "m0n0wall " . php_uname("n") . " " . $version . " " .
+			$g['platform'] . " " . php_uname("s") . " " . php_uname("r") .
+			" " . php_uname("m");
+	
 		$snmpdconf = <<<EOD
+sysdescr "$sysDescr"
 syslocation "{$config['snmpd']['syslocation']}"
 syscontact "{$config['snmpd']['syscontact']}"
 rocommunity "{$config['snmpd']['rocommunity']}"

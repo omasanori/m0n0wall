@@ -38,6 +38,9 @@
 	/* parse the configuration and include all functions used below */
 	require_once("config.inc");
 	require_once("functions.inc");
+
+	/* check whether config reset is desired (via hardware button on WRAP) */
+	system_check_reset_button();
 	
 	/* convert configuration, if necessary */
 	convert_config();
@@ -157,6 +160,9 @@
 	
 	/* enable HD standby */
 	system_set_harddisk_standby();
+
+	/* enable watchdog */
+	system_watchdog_configure();
 	
 	/* done */
 	unlink("{$g['varrun_path']}/booting");
